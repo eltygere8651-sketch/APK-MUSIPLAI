@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Evitar corrupción de GitHub/Vercel con PNGs
+public/icon-*.png
+public/apple-touch-icon*.png
+public/favicon.png

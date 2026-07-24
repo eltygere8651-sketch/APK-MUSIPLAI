@@ -1,0 +1,175 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Migration Locks
+    match /migration_locks/{lockId} {
+      allow read, write: if true; // Permitimos lectura y escritura publica para bloqueos temporales
+    }
+
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Solo permitimos al Administrador Maestro realizar modificaciones
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "eltygere8651@gmail.com";
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      // El usuario puede leer su propio perfil, admin puede leer todos
+      allow get, list: if isSignedIn() && (request.auth.uid == userId || isAdmin() || (resource == null) || (resource != null && (!("plan" in resource.data) || resource.data.plan == "none" || resource.data.plan == "free")));
+      
+      // Permitir que el usuario cree su propio perfil inicial, protegiendo campos sensibles
+      allow create: if isSignedIn() && (request.auth.uid == userId) &&
+                    (!request.resource.data.keys().hasAny(['role', 'subscriptionEnd']));
+      
+      // Permitir que el usuario actualice su perfil, protegiendo campos sensibles
+      allow update: if isAdmin() || (
+        isSignedIn() && request.auth.uid == userId &&
+        (
+          (!request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['trialStart', 'subscriptionEnd', 'plan', 'role']))
+          ||
+          (
+            existing().plan == "none" &&
+            incoming().plan == "free" &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionEnd', 'role'])
+          )
+        )
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // 2. Playlists (Acceso Público de Lectura, Escritura SOLO Admin o con Clave)
+    match /users/{userId}/playlists/{playlistId} {
+      // Lectura pública
+      allow list, get: if true; 
+      
+      // Creación permitida si:
+      // 1. Es el Administrador Maestro
+      // 2. Proporciona la clave secreta correcta
+      // 3. Es el Dueño del perfil (Socio Premium)
+      allow create: if isAdmin() || 
+                       (request.resource.data.adminSecret == "ho82788278") || 
+                       (isSignedIn() && request.auth.uid == userId);
+      
+      // Escritura permitida al Admin, al Dueño, o a quien conozca la clave (si el doc la tiene)
+      allow update, delete: if isAdmin() || 
+                             (isSignedIn() && (request.auth.uid == userId || existing().adminSecret == "ho82788278"));
+    }
+
+    // Regla de respaldo para cualquier subcolección de playlist si existiera
+    match /{path=**}/playlists/{playlistId} {
+      allow list, get: if true;
+      allow create: if isAdmin() || 
+                       (request.resource.data.adminSecret == "ho82788278") ||
+                       (isSignedIn() && request.auth.uid == request.resource.data.ownerId);
+      allow update, delete: if isAdmin() || 
+                             (isSignedIn() && ((resource != null && resource.data.ownerId == request.auth.uid) || (resource != null && resource.data.adminSecret == "ho82788278")));
+    }
+
+    // 3. System Settings (Sección de configuración de notificaciones)
+    match /system_settings/telegram {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /system_settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 4. Support Messages (Cualquier usuario puede enviar soporte, solo Admin puede leer/gestionar)
+    match /support_messages/{messageId} {
+      allow create: if true;
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email)) || true;
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByUser']) && 
+        (
+          (request.auth != null && resource.data.userId == request.auth.uid) || 
+          true
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+        // 4. Trial Requests (Solicitudes de Prueba)
+    match /trial_requests/{requestId} {
+      // El Administrador tiene control total
+      allow read, write: if isAdmin();
+
+      // Los usuarios autenticados pueden obtener su propia solicitud
+      allow get: if isSignedIn(); // Allow reading for migration
+
+      // Los usuarios autenticados pueden listar/buscar sus propias solicitudes o comprobar por huella digital / IP
+      allow list: if isSignedIn();
+
+      // Crear solicitud de prueba para su propia cuenta
+      allow create: if isSignedIn() && (request.auth.uid == requestId) && (incoming().uid == request.auth.uid);
+    }
+
+    // 5. Public Announcements
+    match /announcements/{announcementId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 6. Admin Explore Custom Playlists
+    match /explore_custom_playlists/{playlistId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 7. Admin Configuration
+    match /admin/{docId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 8. QR Campaigns
+    match /qr_campaigns/{campaignId} {
+      allow read, create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scans']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vipActivations']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['premiumConversions'])
+      );
+    }
+
+    // 9. VIP System (Client-side)
+    match /vip_devices/{deviceHash} {
+      // Allow checking if a device hash exists, but prevent listing all devices
+      allow get: if true;
+      allow list: if isAdmin();
+      
+      // Allow creation only if the document does not exist, and enforce immutability
+      allow create: if request.resource.data.keys().hasAll(['activatedAt', 'uid']);
+      
+      // Prevent any client-side modifications after creation
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /vip_activations/{activationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == activationId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "databaseId": "ai-studio-a49e097c-114f-471a-ad4d-816b4092e3ad",
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public and private user data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "lastLogin"]
+    },
+    "Playlist": {
+      "title": "User Playlist",
+      "description": "SoundCloud tracks and folders",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "tracks": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "tracks", "createdAt", "updatedAt"]
+    },
+    "SystemSetting": {
+      "title": "System Setting",
+      "description": "Secure configurations for integration engines",
+      "type": "object",
+      "properties": {
+        "botToken": { "type": "string" },
+        "chatId": { "type": "string" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["botToken", "chatId"]
+    },
+    "TrialRequest": {
+      "title": "Trial Request",
+      "description": "7-day trial period requests for manual validation",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "ip": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["uid", "email", "status"]
+    },
+    "SupportMessage": {
+      "title": "Support Message",
+      "description": "User queries or feedback submitted to support",
+      "type": "object",
+      "properties": {
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["userEmail", "userName", "message", "createdAt"]
+    },
+    "QRCampaign": {
+      "title": "QR Campaign",
+      "description": "Marketing QR campaign entries",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "template": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "scans": { "type": "integer" },
+        "vipActivations": { "type": "integer" },
+        "premiumConversions": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "template", "status", "scans"]
+    }
+  },
+  "firestore": {
+    "/qr_campaigns/{campaignId}": {
+      "schema": "QRCampaign",
+      "description": "QR campaigns for VIP trials"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/playlists/{playlistId}": {
+      "schema": "Playlist",
+      "description": "User playlists and tracks"
+    },
+    "/system_settings/{settingId}": {
+      "schema": "SystemSetting",
+      "description": "Secure system parameters and keys"
+    },
+    "/trial_requests/{requestId}": {
+      "schema": "TrialRequest",
+      "description": "Customer trial request entries"
+    },
+    "/support_messages/{messageId}": {
+      "schema": "SupportMessage",
+      "description": "Customer support and query entries"
+    }
+  }
+}

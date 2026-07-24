@@ -1,0 +1,163 @@
+--- src/components/FluxKaraoke.tsx
++++ src/components/FluxKaraoke.tsx
+@@ -28,6 +28,45 @@
+   "Reik": "pop",
+ };
+ 
++const createSilentAudioBlobURL = (): string => {
++  if (typeof window === "undefined") return "";
++  const sampleRate = 44100;
++  const duration = 10; 
++  const numSamples = sampleRate * duration;
++  const buffer = new ArrayBuffer(44 + numSamples * 2);
++  const view = new DataView(buffer);
++
++  const writeString = (offset: number, string: string) => {
++    for (let i = 0; i < string.length; i++) {
++      view.setUint8(offset + i, string.charCodeAt(i));
++    }
++  };
++
++  writeString(0, "RIFF");
++  view.setUint32(4, 36 + numSamples * 2, true);
++  writeString(8, "WAVE");
++  writeString(12, "fmt ");
++  view.setUint32(16, 16, true);
++  view.setUint16(20, 1, true);
++  view.setUint16(22, 1, true);
++  view.setUint32(24, sampleRate, true);
++  view.setUint32(28, sampleRate * 2, true);
++  view.setUint16(32, 2, true);
++  view.setUint16(34, 16, true);
++  writeString(36, "data");
++  view.setUint32(40, numSamples * 2, true);
++
++  for (let i = 0; i < numSamples; i++) {
++    view.setInt16(44 + i * 2, 0, true);
++  }
++
++  const blob = new Blob([view], { type: "audio/wav" });
++  return URL.createObjectURL(blob);
++};
++
++const silentAudioBlobSrc = createSilentAudioBlobURL();
++
+ export default function FluxKaraoke() {
+   const [searchQuery, setSearchQuery] = useState("");
+   const [isSearching, setIsSearching] = useState(false);
+@@ -64,6 +103,26 @@
+   const [showMobileControls, setShowMobileControls] = useState(true);
+   const controlsTimeoutRef = useRef<any>(null);
+ 
++  const reactPlayerRef = useRef<any>(null);
++  const fallbackSilentAudioRef = useRef<HTMLAudioElement | null>(null);
++  const expectedPlayingRef = useRef(false);
++
++  useEffect(() => {
++    const handleFirstGesture = () => {
++      if (fallbackSilentAudioRef.current) {
++        fallbackSilentAudioRef.current.play().catch(() => {});
++      }
++      window.removeEventListener("click", handleFirstGesture);
++      window.removeEventListener("touchstart", handleFirstGesture);
++    };
++    window.addEventListener("click", handleFirstGesture);
++    window.addEventListener("touchstart", handleFirstGesture);
++    return () => {
++      window.removeEventListener("click", handleFirstGesture);
++      window.removeEventListener("touchstart", handleFirstGesture);
++    };
++  }, []);
++
+   const premiumPlaylists = [
+     {
+       group: "Artistas Leyenda",
+@@ -134,6 +193,7 @@
+   const handleTrackClick = (track: any) => {
+     setCurrentTrack(track);
+     setIsPlaying(true);
++    expectedPlayingRef.current = true;
+     
+     // Request fullscreen on mobile directly inside the user click handler to satisfy browser gesture requirements
+     if (window.innerWidth < 768) {
+@@ -176,6 +236,7 @@
+   const handlePlayNextInQueue = () => {
+     if (karaokeQueue.length > 0) {
+       const nextTrack = karaokeQueue[0];
+       setKaraokeQueue(prev => prev.slice(1));
+       setCurrentTrack(nextTrack);
+       setIsPlaying(true);
++      expectedPlayingRef.current = true;
+     } else {
+       setCurrentTrack(null);
+     }
+@@ -296,6 +357,7 @@
+   useEffect(() => {
+     // Only used to ensure it stays playing if state changes
+     if (currentTrack && (lyricsState === "found" || lyricsState === "not_found")) {
+       setIsPlaying(true);
++      expectedPlayingRef.current = true;
+     }
+   }, [lyricsState, currentTrack]);
+ 
+@@ -522,6 +584,13 @@
+ 
+   return (
+     <div className="w-full h-full flex flex-col bg-[#050505] text-white select-none relative">
++      {/* Global hidden audio for iOS unlock */}
++      <audio
++        ref={fallbackSilentAudioRef}
++        src={silentAudioBlobSrc}
++        playsInline
++        loop
++        className="hidden absolute w-0 h-0 pointer-events-none opacity-0"
++      />
+       {/* Header / Search (Always visible or styled for great navigation) */}
+       <div className="p-4 md:p-6 border-b border-white/5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-black/30">
+@@ -1202,6 +1271,7 @@
+                 {/* When lyrics are not found, we show the full video to not crop YouTube's built-in karaoke lyrics. Otherwise, we oversize it to hide YouTube branding. */}
+                 <div className={`absolute pointer-events-none transition-all duration-700 ${lyricsState === 'not_found' ? 'w-full h-full left-0 top-0' : 'w-[124%] h-[124%] left-[-12%] top-[-12%]'}`}>
+                   <ReactPlayer
++                    ref={reactPlayerRef}
+                     url={`https://www.youtube.com/watch?v=${currentTrack.id}`}
+                     playing={isPlaying}
+                     onProgress={(p) => setCurrentTime(p.playedSeconds)}
+                     onEnded={handlePlayNextInQueue}
+-                    onReady={() => { setIsPlayerReady(true); setIsBuffering(false); }}
++                    onReady={() => { 
++                      setIsPlayerReady(true); 
++                      setIsBuffering(false); 
++                      if (expectedPlayingRef.current && reactPlayerRef.current) {
++                        try {
++                          const intPlayer = reactPlayerRef.current.getInternalPlayer();
++                          if (intPlayer && typeof intPlayer.playVideo === "function") {
++                            intPlayer.playVideo();
++                          }
++                        } catch(e) {}
++                      }
++                    }}
+                     onBuffer={() => setIsBuffering(true)}
+-                    onBufferEnd={() => setIsBuffering(false)}
++                    onBufferEnd={() => {
++                      setIsBuffering(false);
++                      if (expectedPlayingRef.current && reactPlayerRef.current) {
++                        try {
++                          const intPlayer = reactPlayerRef.current.getInternalPlayer();
++                          if (intPlayer && typeof intPlayer.playVideo === "function") {
++                            intPlayer.playVideo();
++                          }
++                        } catch(e) {}
++                      }
++                    }}
+                     controls={false}
+                     width="100%"
+                     height="100%"
+@@ -1299,7 +1369,7 @@
+                         >
+                           <SkipBack className="w-5 h-5" />
+                         </button>
+                         <button 
+-                          onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }}
++                          onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); expectedPlayingRef.current = !isPlaying; }}
+                           className="w-16 h-16 flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black rounded-full transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                         >

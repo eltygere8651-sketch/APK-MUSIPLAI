@@ -1,0 +1,9 @@
+  const handleToggleFavorite = async (
+    track: MusicTrack,
+    event: React.MouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!user) {
+      showNotification("Debes iniciar sesión para añadir a favoritos");
