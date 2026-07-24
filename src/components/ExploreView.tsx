@@ -289,25 +289,25 @@ export const ExploreView: React.FC<ExploreViewProps> = React.memo(
       if (section.type !== "custom") {
         switch (section.id) {
           case "mixParaTi":
-            data = exploreData.mixParaTi || [];
+            data = exploreData?.mixParaTi || [];
             break;
           case "top100":
-            data = exploreData.top100 || [];
+            data = exploreData?.top100 || [];
             break;
           case "top20":
-            data = exploreData.top20Tendencias || [];
+            data = exploreData?.top20Tendencias || [];
             break;
           case "daily20":
-            data = exploreData.dailyTopPlaylists || [];
+            data = exploreData?.dailyTopPlaylists || [];
             break;
           case "dailyTop":
-            data = exploreData.dailyTop || [];
+            data = exploreData?.dailyTop || [];
             break;
           case "trending":
-            data = exploreData.trending || [];
+            data = exploreData?.trending || [];
             break;
           case "pop":
-            data = exploreData.pop || [];
+            data = exploreData?.pop || [];
             break;
           default:
             data = [];
