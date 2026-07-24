@@ -1,8 +1,9 @@
 {
-  "appId": "com.remixgym.app",
-  "appName": "Remix Gym",
+  "appId": "com.fluxplay.app",
+  "appName": "fluxplay",
   "webDir": "dist",
   "bundledWebRuntime": false,
+  "overrideUserAgent": "Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
   "plugins": {
     "CapacitorHttp": {
       "enabled": true

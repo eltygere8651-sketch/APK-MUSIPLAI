@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useFirebase } from "./FirebaseProvider";
-import { loginWithGoogle, loginWithEmail, signupWithEmail, resetPassword, db } from "../lib/firebase";
+import { loginWithGoogle, loginWithEmail, signupWithEmail, resetPassword, signInAnonymously, auth, db } from "../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { X, LogIn, Mail, Lock, Shield, Check, AlertCircle, Eye, EyeOff, UserPlus } from "lucide-react";
+import { X, LogIn, Mail, Lock, Shield, Check, AlertCircle, Eye, EyeOff, UserPlus, UserCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export const AuthModal: React.FC = () => {
@@ -42,6 +42,25 @@ export const AuthModal: React.FC = () => {
       } else {
         setErrorMsg(err?.message || "Error al iniciar sesión.");
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAnonymousLogin = async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      await signInAnonymously(auth);
+      setSuccessMsg("¡Sesión anónima iniciada con éxito! Iniciando...");
+      setTimeout(() => {
+        setAuthModalOpen(false);
+        window.location.reload();
+      }, 1200);
+    } catch (err: any) {
+      console.error("Anonymous auth error:", err);
+      setErrorMsg(err?.message || "Error al iniciar sesión anónima.");
     } finally {
       setIsLoading(false);
     }
@@ -372,7 +391,7 @@ export const AuthModal: React.FC = () => {
               type="button"
               onClick={handleGoogleLogin}
               disabled={isLoading}
-              className="w-full py-3 bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[9px] rounded-xl active:bg-white/10 active:border-white/20 active:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[9px] rounded-xl active:bg-white/10 active:border-white/20 active:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer mb-2"
             >
               <svg className="w-4 h-4 mr-1 shrink-0 text-[#1ED760]" viewBox="0 0 24 24">
                 <path
@@ -393,6 +412,17 @@ export const AuthModal: React.FC = () => {
                 />
               </svg>
               <span>Google</span>
+            </button>
+
+            {/* Anonymous login option */}
+            <button
+              type="button"
+              onClick={handleAnonymousLogin}
+              disabled={isLoading}
+              className="w-full py-3 bg-transparent border border-white/5 text-slate-400 font-black uppercase tracking-widest text-[9px] rounded-xl active:bg-white/5 active:text-white transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <UserCircle className="w-4 h-4 text-slate-500" />
+              <span>Entrar como Invitado</span>
             </button>
 
             {/* Bottom secure certificate indicator badge */}

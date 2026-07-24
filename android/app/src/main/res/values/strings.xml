@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Remix Gym</string>
-    <string name="title_activity_main">Remix Gym</string>
-    <string name="package_name">com.remixgym.app</string>
-    <string name="custom_url_scheme">com.remixgym.app</string>
+    <string name="app_name">fluxplay</string>
+    <string name="title_activity_main">fluxplay</string>
+    <string name="package_name">com.fluxplay.app</string>
+    <string name="custom_url_scheme">com.fluxplay.app</string>
 </resources>

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { initializeApp } from 'firebase/app';
 import { updateEmail, updatePassword } from 'firebase/auth';
 import { 
@@ -58,26 +59,26 @@ export const registerAuthErrorHandler = (callback: AuthErrorCallback) => { onAut
 
 export const loginWithGoogle = async () => {
   const user = auth.currentUser;
-
   try {
-    // 1. Try signInWithPopup first (extremely compatible with standalone mobile browsers, safari, etc.)
-    await signInWithPopup(auth, googleProvider);
+    if (Capacitor.isNativePlatform()) {
+      // In Capacitor (Android/iOS), popup flow often fails or opens external browser.
+      // Use redirect flow directly.
+      await signInWithRedirect(auth, googleProvider);
+    } else {
+      // Standard web behavior
+      await signInWithPopup(auth, googleProvider);
+    }
   } catch (error: any) {
-    console.warn("Popup authentication failed, trying redirect fallback:", error);
+    console.warn("Authentication failed:", error);
     if (onAuthErrorCallback) {
       onAuthErrorCallback(error);
     }
-    
-    // Only try redirect if it's not a domain unauthorized error, because redirect will also fail
-    if (error?.code !== "auth/unauthorized-domain") {
-      try {
-        await signInWithRedirect(auth, googleProvider);
-      } catch (redirectError: any) {
-        console.warn("Redirect login selection failed:", redirectError.code || redirectError.message);
-        if (onAuthErrorCallback) {
-          onAuthErrorCallback(redirectError);
-        }
-      }
+    if (!Capacitor.isNativePlatform() && error?.code !== "auth/unauthorized-domain") {
+       try {
+         await signInWithRedirect(auth, googleProvider);
+       } catch(e: any) {
+         if (onAuthErrorCallback) onAuthErrorCallback(e);
+       }
     }
   }
 };
