@@ -9484,7 +9484,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
         )}
       </AnimatePresence>
 
-      {((!user && !authLoading) || (accessData && !accessData.isValid)) && (
+      {false && (
         <div className="absolute inset-0 z-[99999] bg-black/70 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-8 text-center overscroll-none select-none overflow-y-auto">
           {/* Authentic Spotify premium subtle ambient green glow */}
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#1ED760]/10 blur-[120px] pointer-events-none animate-pulse" />
