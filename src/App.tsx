@@ -1,3 +1,4 @@
+import { App as CapacitorApp } from '@capacitor/app';
 import { useState, useEffect, useRef, useMemo } from "react";
 // Triggering an update for GitHub export 2
 import { motion, AnimatePresence } from "motion/react";
@@ -1498,6 +1499,18 @@ function AppContent() {
 }
 
 export default function App() {
+
+  useEffect(() => {
+    CapacitorApp.addListener('appUrlOpen', data => {
+      console.log('App opened with URL:', data.url);
+      if (data.url.includes('__%2Fauth%2Fhandler') || data.url.includes('__/auth/handler')) {
+        // Redirect the webview to the OAuth response URL so Firebase can process it
+        const urlObj = new URL(data.url);
+        window.location.assign(urlObj.pathname + urlObj.search + urlObj.hash);
+      }
+    });
+  }, []);
+
   return (
     <FirebaseProvider>
       <AppContent />

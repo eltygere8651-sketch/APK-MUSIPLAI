@@ -61,11 +61,8 @@ export const loginWithGoogle = async () => {
   const user = auth.currentUser;
   try {
     if (Capacitor.isNativePlatform()) {
-      // In Capacitor (Android/iOS), popup flow often fails or opens external browser.
-      // Use redirect flow directly.
       await signInWithRedirect(auth, googleProvider);
     } else {
-      // Standard web behavior
       await signInWithPopup(auth, googleProvider);
     }
   } catch (error: any) {

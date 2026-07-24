@@ -174,11 +174,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({
             let finalTStart = tStart;
             
             // Clean up ghost anonymous users that have no trial/plan
-            if (u.isAnonymous && !finalIsValid && !finalTStart && planType === "none") {
-                console.log("Ghost user detected, signing out...");
-                await signOut(auth);
-                return;
-            }
+            // Removed to allow anonymous users to access the app and start a trial if they want.
             
             setAccessData({
               trialStart: finalTStart,
