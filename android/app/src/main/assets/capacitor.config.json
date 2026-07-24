@@ -1,0 +1,11 @@
+{
+	"appId": "com.remixgym.app",
+	"appName": "Remix Gym",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
+}
