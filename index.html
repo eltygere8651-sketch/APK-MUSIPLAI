@@ -1,6 +1,18 @@
 <!doctype html>
 <html lang="es">
   <head>
+    <script>
+      Object.defineProperty(document, 'hidden', {
+        get: function() { return false; }
+      });
+      Object.defineProperty(document, 'visibilityState', {
+        get: function() { return 'visible'; }
+      });
+      window.addEventListener('visibilitychange', function(e) {
+        e.stopImmediatePropagation();
+      }, true);
+    </script>
+  
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="google" content="notranslate" />

@@ -4789,11 +4789,12 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
 
       if (Capacitor.isNativePlatform()) {
         try {
+          const nativeArtwork = (artwork && artwork.startsWith('http')) ? artwork : 'https://apk-musiplai.onrender.com/icon-512.png'; // Placeholder valid URL if not http
           await MediaSession.setMetadata({
             title,
             artist,
             album,
-            artwork: [{ src: artwork }]
+            artwork: [{ src: nativeArtwork }]
           });
         } catch (e) {
           console.warn('Capacitor MediaSession setMetadata failed', e);
