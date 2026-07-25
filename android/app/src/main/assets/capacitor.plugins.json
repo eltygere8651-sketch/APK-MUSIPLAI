@@ -2,5 +2,9 @@
 	{
 		"pkg": "@capacitor/app",
 		"classpath": "com.capacitorjs.plugins.app.AppPlugin"
+	},
+	{
+		"pkg": "@jofr/capacitor-media-session",
+		"classpath": "io.github.jofr.capacitor.mediasessionplugin.MediaSessionPlugin"
 	}
 ]

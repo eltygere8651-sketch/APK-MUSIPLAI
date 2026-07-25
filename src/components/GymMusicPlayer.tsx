@@ -7,6 +7,8 @@ import React, {
   useMemo,
 } from "react";
 import { Carousel } from "./Carousel";
+import { MediaSession } from '@jofr/capacitor-media-session';
+import { Capacitor } from '@capacitor/core';
 import ReactPlayer from "react-player";
 import { motion, AnimatePresence } from "motion/react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
@@ -4739,6 +4741,17 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
       }
     });
 
+    if (Capacitor.isNativePlatform()) {
+       try {
+         MediaSession.setActionHandler({ action: 'play' }, sessionHandlersRef.current.playHandler);
+         MediaSession.setActionHandler({ action: 'pause' }, sessionHandlersRef.current.pauseHandler);
+         MediaSession.setActionHandler({ action: 'previoustrack' }, sessionHandlersRef.current.prevHandler);
+         MediaSession.setActionHandler({ action: 'nexttrack' }, sessionHandlersRef.current.nextHandler);
+       } catch (e) {
+         console.warn("MediaSession action handler error", e);
+       }
+    }
+
     // Add SeekTo Support
     try {
       navigator.mediaSession.setActionHandler(
@@ -4750,23 +4763,42 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
 
   const lastMetadataRef = useRef<string>("");
 
-  const registerMediaSession = useCallback((forceUpdate: boolean = false) => {
+  const registerMediaSession = useCallback(async (forceUpdate: boolean = false) => {
     if (!("mediaSession" in navigator)) return;
 
     const metadataKey = `${displayTitle}-${displayArtist}-${displayArtwork}`;
     if (lastMetadataRef.current !== metadataKey || forceUpdate) {
       lastMetadataRef.current = metadataKey;
+      
+      const title = displayTitle || "Flux Music";
+      const artist = displayArtist || "Unknown Artist";
+      const album = selectedPlaylist?.name || "Flux Music";
+      const artwork = displayArtwork || DEFAULT_MUSIC_COVER;
+
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: displayTitle,
-        artist: displayArtist,
-        album: selectedPlaylist?.name || "Flux Music",
+        title,
+        artist,
+        album,
         artwork: [
-          { src: displayArtwork, sizes: "512x512", type: "image/jpeg" },
-          { src: displayArtwork, sizes: "256x256", type: "image/jpeg" },
-          { src: displayArtwork, sizes: "128x128", type: "image/jpeg" },
-          { src: displayArtwork, sizes: "96x96", type: "image/jpeg" },
+          { src: artwork, sizes: "512x512", type: "image/jpeg" },
+          { src: artwork, sizes: "256x256", type: "image/jpeg" },
+          { src: artwork, sizes: "128x128", type: "image/jpeg" },
+          { src: artwork, sizes: "96x96", type: "image/jpeg" },
         ],
       });
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await MediaSession.setMetadata({
+            title,
+            artist,
+            album,
+            artwork: [{ src: artwork }]
+          });
+        } catch (e) {
+          console.warn('Capacitor MediaSession setMetadata failed', e);
+        }
+      }
     }
 
     enforceActionHandlers();
@@ -4796,6 +4828,9 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
   useEffect(() => {
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+    }
+    if (Capacitor.isNativePlatform()) {
+      MediaSession.setPlaybackState({ playbackState: isPlaying ? "playing" : "paused" }).catch(e => console.warn(e));
     }
   }, [isPlaying]);
 
