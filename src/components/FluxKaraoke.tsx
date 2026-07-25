@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactPlayer from "react-player";
@@ -301,7 +302,7 @@ export const FluxKaraoke = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds max
 
-      fetch(`/api/lyrics/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+      fetch(`${API_BASE_URL}/api/lyrics/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
         .then(res => {
           clearTimeout(timeoutId);
           if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -448,7 +449,7 @@ export const FluxKaraoke = () => {
     try {
       // Prioritize high-quality professional karaoke channels with synchronized lyrics
       const query = `${queryText} karaoke con letra`;
-      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error("Search failed");
       const results = await response.json();
       

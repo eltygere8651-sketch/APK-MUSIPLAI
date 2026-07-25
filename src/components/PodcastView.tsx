@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Search, Play, Pause, Loader2, ChevronLeft, ChevronDown, Headphones, Radio, Heart, Bookmark, Library, Clock, CheckCircle } from 'lucide-react';
 import { useFirebase } from "./FirebaseProvider";
@@ -295,7 +296,7 @@ export const PodcastView = ({ isVisible, pauseBackgroundMusic }: { isVisible: bo
     setIsLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/podcasts/search?term=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE_URL}/api/podcasts/search?term=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error("Error en la búsqueda");
       const data = await res.json();
       setPodcasts(data);
@@ -320,7 +321,7 @@ export const PodcastView = ({ isVisible, pauseBackgroundMusic }: { isVisible: bo
     setEpisodes([]);
     setError("");
     try {
-      const res = await fetch(`/api/podcasts/episodes?feedUrl=${encodeURIComponent(podcast.feedUrl)}`);
+      const res = await fetch(`${API_BASE_URL}/api/podcasts/episodes?feedUrl=${encodeURIComponent(podcast.feedUrl)}`);
       if (!res.ok) throw new Error("Error obteniendo los episodios");
       const data = await res.json();
       setEpisodes(Array.isArray(data) ? data.slice().reverse() : []);

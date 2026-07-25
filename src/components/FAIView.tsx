@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -254,7 +255,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
           // Add random freshness modifier to make the genre query infinite and varied
           const freshnessModifiers = ["2024 playlist", "novedades", "exitos mix", "actual", "top hits", "tendencia", "mejores", "mix oficial"];
           const randomModifier = freshnessModifiers[Math.floor(Math.random() * freshnessModifiers.length)];
-          const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(activeGenre + " " + randomModifier)}`);
+          const resp = await fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(activeGenre + " " + randomModifier)}`);
 
           if (resp.ok) {
             const data = await resp.json();
@@ -266,7 +267,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
                 // Try up to 2 playlists to find tracks
                 for (let i = 0; i < Math.min(2, playlists.length); i++) {
                   const pl = playlists[i];
-                  const plResp = await fetch(`/api/youtube/playlist?id=${pl.id}`);
+                  const plResp = await fetch(`${API_BASE_URL}/api/youtube/playlist?id=${pl.id}`);
                   if (plResp.ok) {
                     const plData = await plResp.json();
                     const tracksArray = Array.isArray(plData) ? plData : (plData.tracks || []);
@@ -333,7 +334,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
           // Select a random query from the pool to avoid repeating the same lists!
           const randomQuery = TOP_HITS_QUERIES[Math.floor(Math.random() * TOP_HITS_QUERIES.length)];
           try {
-            const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(randomQuery)}`);
+            const resp = await fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(randomQuery)}`);
           if (resp.ok) {
             const data = await resp.json();
             if (data && data.length > 0) {
@@ -344,7 +345,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
                 // Try up to 3 playlists to merge tracks and get huge variety
                 for (let i = 0; i < Math.min(3, playlists.length); i++) {
                   const pl = playlists[i];
-                  const plResp = await fetch(`/api/youtube/playlist?id=${pl.id}`);
+                  const plResp = await fetch(`${API_BASE_URL}/api/youtube/playlist?id=${pl.id}`);
                   if (plResp.ok) {
                     const plData = await plResp.json();
                     const tracksArray2 = Array.isArray(plData) ? plData : (plData.tracks || []);
@@ -414,7 +415,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
           ];
           const randomQuery = TOP_HITS_QUERIES[Math.floor(Math.random() * TOP_HITS_QUERIES.length)];
           try {
-            const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(randomQuery)}`);
+            const resp = await fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(randomQuery)}`);
             if (resp.ok) {
               const data = await resp.json();
               if (data && data.length > 0) {
@@ -423,7 +424,7 @@ export const FAIView: React.FC<FAIViewProps> = ({
                 if (playlists.length > 0) {
                   for (let i = 0; i < Math.min(3, playlists.length); i++) {
                     const pl = playlists[i];
-                    const plResp = await fetch(`/api/youtube/playlist?id=${pl.id}`);
+                    const plResp = await fetch(`${API_BASE_URL}/api/youtube/playlist?id=${pl.id}`);
                     if (plResp.ok) {
                       const plData = await plResp.json();
                       const tracksArray = Array.isArray(plData) ? plData : (plData.tracks || []);

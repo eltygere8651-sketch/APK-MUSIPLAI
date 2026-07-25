@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, { useState, useEffect, useRef } from "react";
 import {
   collection,
@@ -283,7 +284,7 @@ export const UserManagementAdmin = ({ onClose }: { onClose: () => void }) => {
   const checkSystemHealth = async () => {
     try {
       setIsCheckingHealth(true);
-      const res = await fetch("/api/system/health");
+      const res = await fetch(`${API_BASE_URL}/api/system/health`);
       const data = await res.json();
       setSystemHealth(data);
     } catch (err) {
@@ -831,7 +832,7 @@ export const UserManagementAdmin = ({ onClose }: { onClose: () => void }) => {
         // Warm up backend cache with these credentials (disabled for Vercel)
         if (bToken && cId) {
           /*
-          fetch("/api/support/register-telegram", {
+          fetch(`${API_BASE_URL}/api/support/register-telegram`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -863,7 +864,7 @@ export const UserManagementAdmin = ({ onClose }: { onClose: () => void }) => {
 
       // Synchronize directly with the backend server as well (disabled for Vercel static hosting)
       /*
-      await fetch("/api/support/register-telegram", {
+      await fetch(`${API_BASE_URL}/api/support/register-telegram`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

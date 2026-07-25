@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, {
   useState,
   useEffect,
@@ -871,7 +872,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
           if (docSnap.exists()) {
             const data = docSnap.data();
             if (data?.botToken && data?.chatId) {
-              await fetch("/api/support/register-telegram", {
+              await fetch(`${API_BASE_URL}/api/support/register-telegram`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1438,8 +1439,8 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
           : "Obteniendo detalles del video...",
       );
       const endpoint = isPlaylist
-        ? `/api/youtube/playlist-info?id=${id}`
-        : `/api/youtube/video-info?id=${id}`;
+        ? `${API_BASE_URL}/api/youtube/playlist-info?id=${id}`
+        : `${API_BASE_URL}/api/youtube/video-info?id=${id}`;
         
       let data: any = { title: "", thumbnail: "", artist: "" };
       
@@ -2416,7 +2417,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
       // Infinite radio logic: if queue is empty and we are playing a youtube track, fetch more related tracks
       if (newQueue.length === 0 && nextTrackTarget.id.startsWith('yt_temp_')) {
           const ytId = nextTrackTarget.id.replace('yt_temp_', '');
-          fetch(`/api/youtube/upnext?id=${ytId}`)
+          fetch(`${API_BASE_URL}/api/youtube/upnext?id=${ytId}`)
             .then(r => r.json())
             .then(data => {
               if (data && data.length > 0) {
@@ -3061,7 +3062,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
         setIsLoadingExplore(true);
         try {
           const res = await fetch(
-            `/api/youtube/explore?country=${selectedCountry || "ES"}`,
+            `${API_BASE_URL}/api/youtube/explore?country=${selectedCountry || "ES"}`,
           );
           if (res.ok) {
             const data = await res.json();
@@ -3130,7 +3131,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                       topUniqueArtists.map(
                         (artist) =>
                           fetch(
-                            `/api/youtube/search?q=${encodeURIComponent(artist + " audio")}`,
+                            `${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(artist + " audio")}`,
                           )
                             .then((res) => (res.ok ? res.json() : []))
                             .catch(() => []), // Prevent single failures from rejecting all
@@ -3255,7 +3256,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
       return metadataCacheRef.current[url];
     }
     try {
-      const res = await fetch(`/api/oembed?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${API_BASE_URL}/api/oembed?url=${encodeURIComponent(url)}`);
       if (!res.ok) return null;
 
       const data = await res.json();
@@ -3714,7 +3715,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
     try {
       const encodedTitle = encodeURIComponent(item.title);
       const res = await fetch(
-        `/api/youtube/playlist?id=${item.id}&title=${encodedTitle}`,
+        `${API_BASE_URL}/api/youtube/playlist?id=${item.id}&title=${encodedTitle}`,
       );
       if (!res.ok) throw new Error("Failed to load playlist");
       const tracks = await res.json();
@@ -3762,7 +3763,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
       const qs = playlistTitle
         ? `?id=${playlistId}&title=${encodeURIComponent(playlistTitle)}`
         : `?id=${playlistId}`;
-      const res = await fetch(`/api/youtube/playlist${qs}`);
+      const res = await fetch(`${API_BASE_URL}/api/youtube/playlist${qs}`);
       if (res.ok) {
         const tracks = await res.json();
         setExpandedPlaylistTracks(tracks);
@@ -3828,7 +3829,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
           showNotification("Extrayendo canciones de la lista...");
           try {
             const res = await fetch(
-              `/api/youtube/playlist?id=${trackToAddDestination.id}`,
+              `${API_BASE_URL}/api/youtube/playlist?id=${trackToAddDestination.id}`,
             );
             if (res.ok) {
               const fetched = await res.json();
@@ -4198,7 +4199,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
     setIsSearchingYT(true);
     try {
       const resp = await fetch(
-        `/api/youtube/search?q=${encodeURIComponent(searchQuery)}`,
+        `${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(searchQuery)}`,
       );
       if (!resp.ok) throw new Error("Search failed");
       const data = await resp.json();
@@ -6790,7 +6791,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                         if (ytTrack.type === 'ArtistProfile') {
                            return (
                              <div key={ytTrack.id} className="relative group/yt flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors border border-white/5 cursor-pointer mb-2" onClick={() => {
-                               fetch(`/api/youtube/artist?id=${ytTrack.id}`).then(r => r.json()).then(data => {
+                               fetch(`${API_BASE_URL}/api/youtube/artist?id=${ytTrack.id}`).then(r => r.json()).then(data => {
                                  setArtistDetails(data);
                                });
                                setTrackListTab("artist");
@@ -6899,9 +6900,9 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                                     if (artistName && searchQuery && searchQuery.trim().length > 0) {
                                       // Buscar el repertorio del artista específicamente para no mezclar
                                       Promise.all([
-                                        fetch(`/api/youtube/search?q=${encodeURIComponent(artistName + " exitos")}`).then(r => r.json()).catch(() => []),
-                                        fetch(`/api/youtube/search?q=${encodeURIComponent(artistName + " audio")}`).then(r => r.json()).catch(() => []),
-                                        fetch(`/api/youtube/search?q=${encodeURIComponent(artistName + " album completo")}`).then(r => r.json()).catch(() => [])
+                                        fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(artistName + " exitos")}`).then(r => r.json()).catch(() => []),
+                                        fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(artistName + " audio")}`).then(r => r.json()).catch(() => []),
+                                        fetch(`${API_BASE_URL}/api/youtube/search?q=${encodeURIComponent(artistName + " album completo")}`).then(r => r.json()).catch(() => [])
                                       ]).then(([exitosData, audioData, albumData]) => {
                                         const combined = [...(Array.isArray(exitosData) ? exitosData : []), ...(Array.isArray(audioData) ? audioData : []), ...(Array.isArray(albumData) ? albumData : [])];
                                         const uniqueMap = new Map();
@@ -6947,7 +6948,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                                       }).catch(() => {});
                                     } else {
                                       // Fallback original para otras listas o cuando no hay artista definido
-                                      fetch(`/api/youtube/upnext?id=${ytTrack.id}`)
+                                      fetch(`${API_BASE_URL}/api/youtube/upnext?id=${ytTrack.id}`)
                                         .then(r => r.json())
                                         .then(data => {
                                           if (data && data.length > 0) {
@@ -7083,7 +7084,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                                         );
                                         try {
                                           const res = await fetch(
-                                            `/api/youtube/playlist?id=${ytTrack.id}`,
+                                            `${API_BASE_URL}/api/youtube/playlist?id=${ytTrack.id}`,
                                           );
                                           if (res.ok) {
                                             const tracks = await res.json();
@@ -7424,7 +7425,7 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
                                         loadIframeVideoDirectly(tempTrack);
                                         showNotification(`Reproduciendo: ${item.title}`);
 
-                                        fetch(`/api/youtube/upnext?id=${item.id}`)
+                                        fetch(`${API_BASE_URL}/api/youtube/upnext?id=${item.id}`)
                                           .then(r => r.json())
                                           .then(data => {
                                             if (data && data.length > 0) {

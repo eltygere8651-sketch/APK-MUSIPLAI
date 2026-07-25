@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../lib/constants";
 import React, { useState, useEffect } from "react";
 import {
   Play,
@@ -942,8 +943,8 @@ export const ExploreView: React.FC<ExploreViewProps> = React.memo(
                             if (item.id) {
                               const isPlaylist = item.isPlaylist || item.id.startsWith("PL") || item.id.startsWith("MPRE");
                               const endpoint = isPlaylist 
-                                ? `/api/youtube/playlist-info?id=${item.id}`
-                                : `/api/youtube/video-info?id=${item.id}`;
+                                ? `${API_BASE_URL}/api/youtube/playlist-info?id=${item.id}`
+                                : `${API_BASE_URL}/api/youtube/video-info?id=${item.id}`;
                               
                               fetch(endpoint)
                                 .then(res => {
