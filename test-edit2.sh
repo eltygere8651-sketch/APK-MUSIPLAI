@@ -1,5 +1,5 @@
 #!/bin/bash
-sed -i '4922,5217c\
+sed -i '4921,4952c\
         {currentUrl && engine.render && engine.render({\
           youtubePlayerRef,\
           currentUrl,\

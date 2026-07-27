@@ -9,7 +9,8 @@ import React, {
 import { Carousel } from "./Carousel";
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
-import ReactPlayer from "react-player";
+import { PlaybackEngineFactory } from "../engine/PlaybackEngineFactory";
+import { PlaybackEngine } from "../engine/types";
 import { motion, AnimatePresence } from "motion/react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
@@ -744,6 +745,7 @@ interface GymMusicPlayerProps {
 }
 
 export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlayerProps = {}) {
+  const engine = React.useMemo(() => PlaybackEngineFactory.getEngine(), []);
   const isIOS =
     typeof window !== "undefined" &&
     (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -4916,304 +4918,38 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
           playsInline
           loop
         />
-        {currentUrl && (
-          <ReactPlayer
-            ref={youtubePlayerRef}
-            url={currentUrl}
-            playing={isPlaying}
-            volume={isDucking ? (volume / 100) * 0.15 : (volume / 100)}
-            progressInterval={1000}
-            onError={async (e) => {
-              console.warn("ReactPlayer Error:", e);
-              consecutiveErrorsRef.current += 1;
-              if (consecutiveErrorsRef.current > 4) {
-                console.warn("Too many consecutive playback errors. Pausing playback to prevent infinite loop.");
-                setIsPlaying(false);
-                consecutiveErrorsRef.current = 0;
-                return;
-              }
-              console.warn("Unplayable track detected (copyright, regional block, or deleted). Auto-skipping...");
-              // Skip automatically after a short timeout to prevent instant double skips
-              setTimeout(() => {
-                if (handleNextRef.current) {
-                  handleNextRef.current(true);
-                }
-              }, 1500);
-            }}
-            onReady={(player) => {
-              // Re-register Media Session and reinforce action handlers to beat YouTube iframe's own initial lock screen registration
-              registerMediaSession();
-              enforceActionHandlers();
-
-              if (
-                pendingSeekPosRef.current !== null &&
-                pendingSeekPosRef.current > 0
-              ) {
-                youtubePlayerRef.current?.seekTo(
-                  pendingSeekPosRef.current,
-                  "seconds",
-                );
-              }
-
-              if (initialLoadRef.current) {
-                initialLoadRef.current = false;
-              }
-            }}
-            onBuffer={() => {
-              isBufferingRef.current = true;
-            }}
-            onBufferEnd={() => {
-              isBufferingRef.current = false;
-              if (expectedPlayingRef.current && youtubePlayerRef.current) {
-                try {
-                  const intPlayer = youtubePlayerRef.current.getInternalPlayer();
-                  if (intPlayer) {
-                    if (typeof intPlayer.playVideo === "function") {
-                      intPlayer.playVideo();
-                    } else if (typeof intPlayer.play === "function") {
-                      intPlayer.play();
-                    }
-                  }
-                } catch (e) {}
-              }
-            }}
-            onPlay={() => {
-              isBufferingRef.current = false;
-              wasUnexpectedlyPausedRef.current = false;
-              consecutiveErrorsRef.current = 0;
-              setIsPlaying(true);
-
-              // Keep silent audio playing so we retain the MediaSession lock instead of YouTube iframe taking it
-              // if (fallbackSilentAudioRef.current && !fallbackSilentAudioRef.current.paused) {
-              //   fallbackSilentAudioRef.current.pause();
-              // }
-
-              enforceActionHandlers();
-              registerMediaSession();
-
-              // Crucial iOS fix: Ensure it doesn't get muted by Safari's autoplay policies when playing
-              try {
-                if (youtubePlayerRef.current) {
-                  const intPlayer =
-                    youtubePlayerRef.current.getInternalPlayer();
-                  try {
-                    intPlayer.unMute();
-                  } catch (e) {}
-
-                  // Steal Media Session lock from YouTube AFTER it resumes
-                  // Guarantees Bluetooth wheel controls work in Brave browser + No Micro-cuts
-                  setTimeout(() => {
-                    if (fallbackSilentAudioRef.current && fallbackSilentAudioRef.current.paused) {
-                      fallbackSilentAudioRef.current.play().catch(() => {});
-                    }
-                    enforceActionHandlers();
-                    registerMediaSession(true);
-                  }, 500);
-                }
-              } catch (e) {}
-            }}
-            onPause={() => {
-              // If we expect to be playing, never let the iframe stay paused
-              if (expectedPlayingRef.current) {
-                wasUnexpectedlyPausedRef.current = true;
-
-                if (fallbackSilentAudioRef.current && fallbackSilentAudioRef.current.paused) {
-                  fallbackSilentAudioRef.current.play().catch(() => {});
-                }
-
-                // Immediately counter react-player pause SYNCHRONOUSLY for iOS lock screen bypass
-                // Done only once to avoid conflicting with YouTube's internal buffering state machine
-                if (
-                  expectedPlayingRef.current &&
-                  youtubePlayerRef.current &&
-                  !isBufferingRef.current
-                ) {
-                  try {
-                    const intPlayer =
-                      youtubePlayerRef.current.getInternalPlayer();
-                    if (intPlayer) {
-                      if (typeof intPlayer.playVideo === "function") {
-                        intPlayer.playVideo();
-                      } else if (typeof intPlayer.play === "function") {
-                        intPlayer.play();
-                      }
-                    }
-                  } catch (e) {}
-
-                  // Steal Media Session lock from YouTube AFTER it resumes
-                  // Guarantees Bluetooth wheel controls work in Brave browser + No Micro-cuts
-                  setTimeout(() => {
-                      enforceActionHandlers();
-                      registerMediaSession();
-                  }, 500);
-                }
-
-                // Extremely important: do NOT set isPlaying(false). This caused the audio to stop on iOS.
-                return;
-              }
-              setIsPlaying(false);
-            }}
-            onEnded={() => {
-              if (!hasEarlySkippedRef.current) {
-                handleNextRef.current(true);
-              }
-            }}
-            onProgress={(state) => {
-              try {
-                const intPlayer = youtubePlayerRef.current?.getInternalPlayer();
-                if (intPlayer && typeof intPlayer.getVideoData === "function") {
-                  const currentVideoData = intPlayer.getVideoData();
-                  let expectedVideoId = null;
-                  try {
-                     expectedVideoId = new URL(currentUrl.replace("music.youtube.com", "www.youtube.com")).searchParams.get("v");
-                  } catch(e) {}
-                  
-                  if (currentVideoData?.video_id && expectedVideoId && currentVideoData.video_id !== expectedVideoId) {
-                    if (hasEarlySkippedRef.current) return;
-                    if (Date.now() - lastSkipTimeRef.current < 3000) return;
-                    
-                    const actualVideoId = currentVideoData.video_id;
-                    const getVidId = (u: string) => { try { return new URL((u || "").replace("music.youtube.com", "www.youtube.com")).searchParams.get("v"); } catch { return null; } };
-                    
-                    if (trackQueueRef.current.length > 0 && getVidId(trackQueueRef.current[0].url) === actualVideoId) {
-                       handleNextRef.current();
-                       return;
-                    }
-                    
-                    const nextIndex = displayTracks.findIndex((t) => getVidId(t.url) === actualVideoId);
-                    
-                    if (nextIndex !== -1 && nextIndex !== currentTrackIndex) {
-                       setCurrentTrackIndex(nextIndex);
-                       return; // Exit onProgress to prevent state clashes before reload
-                    }
-                  }
-                }
-              } catch (e) {}
-
-              if (
-                pendingSeekPosRef.current !== null &&
-                pendingSeekPosRef.current > 0
-              ) {
-                if (Math.abs(state.playedSeconds - pendingSeekPosRef.current) > 2 && state.playedSeconds < pendingSeekPosRef.current) {
-                  // Ignore early progress events and enforce the seek if YouTube iframe ignored the onReady seek
-                  youtubePlayerRef.current?.seekTo(
-                    pendingSeekPosRef.current,
-                    "seconds",
-                  );
-                  return;
-                } else {
-                  // Seek has been reached reliably
-                  pendingSeekPosRef.current = null;
-                }
-              }
-              const currentPosMs = state.playedSeconds * 1000;
-              if (document.visibilityState === "visible") {
-                setPosition(currentPosMs);
-              }
-
-              // Persist locally for seamless restoration, even if backgrounded, throttle to once every 5s
-              if (
-                currentPosMs > 0 &&
-                Math.abs(currentPosMs - (positionRef.current || 0)) > 5000
-              ) {
-                positionRef.current = currentPosMs;
-                localStorage.setItem(
-                  "gym_music_saved_position",
-                  currentPosMs.toString(),
-                );
-                if (playingPlaylistRef.current) {
-                  localStorage.setItem(
-                    "gym_music_last_played_playlist_id",
-                    playingPlaylistRef.current.id,
-                  );
-                  localStorage.setItem(
-                    "gym_music_current_track_index",
-                    currentTrackIndexRef.current.toString(),
-                  );
-                }
-              }
-
-              // Intelligent gapless logic: checking for silences/outros/intros using crowdsourced segments
-              const played = state.playedSeconds;
-              const durationCurrent = durationRef.current / 1000;
-
-              // Reset early skip flag once the new video actually starts playing
-              if (hasEarlySkippedRef.current && played < durationCurrent - 2) {
-                hasEarlySkippedRef.current = false;
-              }
-
-              // Pre-activar el audio de respaldo 1.5 segundos antes del final para que iOS no suspenda la app
-              if (durationCurrent > 3 && played >= durationCurrent - 1.5) {
-                if (!hasEarlySkippedRef.current && Date.now() - lastSkipTimeRef.current > 3000) {
-                  hasEarlySkippedRef.current = true;
-                  if (fallbackSilentAudioRef.current && fallbackSilentAudioRef.current.paused) {
-                    fallbackSilentAudioRef.current.play().catch(() => {});
-                  }
-                  // Gapless early skip to mask YouTube loading delay
-                  handleNextRef.current();
-                }
-                return;
-              }
-              const segments = sponsorBlockSegmentsRef.current;
-
-              if (segments && segments.length > 0 && youtubePlayerRef.current) {
-                if (skipTimeoutRef.current) {
-                  clearTimeout(skipTimeoutRef.current);
-                  skipTimeoutRef.current = null;
-                }
-
-                const activeSegment = segments.find(
-                  (seg) => played >= seg.start && played < seg.end,
-                );
-                if (activeSegment) {
-                  // Only go to next track if the segment essentially ends the video
-                  if (durationCurrent > 0 && activeSegment.end >= durationCurrent - 10) {
-                    handleNextRef.current();
-                  } else {
-                    youtubePlayerRef.current.seekTo(activeSegment.end, "seconds");
-                  }
-                } else {
-                  const maxSkipWindowSeconds =
-                    (youtubePlayerRef.current?.props?.progressInterval ||
-                      5000) / 1000;
-                  const nextSegment = segments.find(
-                    (seg) =>
-                      seg.start > played &&
-                      seg.start <= played + maxSkipWindowSeconds,
-                  );
-                  if (nextSegment) {
-                    const msUntilSkip = Math.max(
-                      0,
-                      (nextSegment.start - played) * 1000,
-                    );
-                    skipTimeoutRef.current = setTimeout(() => {
-                      if (isPlayingRef.current && youtubePlayerRef.current) {
-                        const actualSecs =
-                          youtubePlayerRef.current.getCurrentTime() || 0;
-                        if (actualSecs >= nextSegment.start - 2) {
-                          if (durationCurrent > 0 && nextSegment.end >= durationCurrent - 10) {
-                            handleNextRef.current();
-                          } else {
-                            youtubePlayerRef.current.seekTo(nextSegment.end, "seconds");
-                          }
-                        }
-                      }
-                    }, msUntilSkip);
-                  }
-                }
-              }
-            }}
-            onDuration={(dur) => {
-              if (document.visibilityState === "visible" || duration === 0) {
-                setDuration(dur * 1000);
-              }
-            }}
-            config={reactPlayerConfig}
-            width="300px"
-            height="300px"
-          />
-        )}
+        {currentUrl && engine.render && engine.render({
+          youtubePlayerRef,
+          currentUrl,
+          isPlaying,
+          setIsPlaying,
+          isDucking,
+          volume,
+          consecutiveErrorsRef,
+          handleNextRef,
+          registerMediaSession,
+          enforceActionHandlers,
+          pendingSeekPosRef,
+          initialLoadRef,
+          isBufferingRef,
+          expectedPlayingRef,
+          wasUnexpectedlyPausedRef,
+          fallbackSilentAudioRef,
+          hasEarlySkippedRef,
+          lastSkipTimeRef,
+          trackQueueRef,
+          displayTracks,
+          currentTrackIndex,
+          setCurrentTrackIndex,
+          setPosition,
+          positionRef,
+          duration,
+          setDuration,
+          reactPlayerConfig
+        })}
       </div>
+
+
 
       {/* GLOBAL TABS / PILLS HEADER */}
       <Carousel className="px-3 py-2 gap-1.5 bg-[#050505]/95 select-none z-10 shrink-0 border-b border-white/5 snap-x w-full">
