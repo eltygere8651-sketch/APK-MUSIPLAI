@@ -35,8 +35,16 @@ import { AuthModal } from "./components/AuthModal";
 import { NotificationsModal, COMPILED_UPDATES } from "./components/NotificationsModal";
 import { APP_UPDATES_VERSION } from "./config/appVersion";
 import { ShareModal } from "./components/ShareModal";
+import ClientResolverPOC from "./lab/clientResolver/ClientResolverPOC";
 
 function AppContent() {
+  const [isPOC, setIsPOC] = useState(window.location.hash === '#poc');
+  useEffect(() => {
+    const handleHash = () => setIsPOC(window.location.hash === '#poc');
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
   const { user, loading: authLoading, isOnline, setAuthModalOpen, accessData } = useFirebase();
 
   const isAdmin = user?.email === "eltygere8651@gmail.com";
@@ -765,6 +773,10 @@ function AppContent() {
 
   const isVIPMode = typeof window !== 'undefined' && (window.location.pathname === '/vip' || window.location.search.includes('vip=1'));
   const isAnonymousExpired = user?.isAnonymous && accessData && !accessData.isValid && accessData.trialStart;
+  if (isPOC) {
+    return <ClientResolverPOC />;
+  }
+
   if (isVIPMode || isAnonymousExpired) {
     return <VIPLandingView />;
   }

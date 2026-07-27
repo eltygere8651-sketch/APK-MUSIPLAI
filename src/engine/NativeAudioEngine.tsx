@@ -1,3 +1,7 @@
+const USE_CLIENT_STREAM_RESOLVER = true;
+import { resolveAudioUrl } from '../lib/ClientResolver';
+import { resolveClientStream } from '../lib/ClientStreamResolver';
+import { Capacitor } from '@capacitor/core';
 import React, { useEffect, useRef } from 'react';
 import { PlaybackEngine, PlaybackState, EngineEvent } from './types';
 import { NativeAudio } from '../plugins/NativeAudio';
@@ -16,6 +20,9 @@ export class NativeAudioEngine implements PlaybackEngine {
   public context: any = null;
 
   constructor() {
+    if (Capacitor.getPlatform() === 'web') {
+      console.error("NATIVE_AUDIO_NOT_AVAILABLE_ON_WEB: NativeAudioEngine must not be used on the web. Switching to ReactPlayerEngine requires factory level handling, but catching this here as a safety measure.");
+    }
     this.setupListeners();
     diagnostics.logEvent('NativeAudioEngine initialized');
   }
@@ -60,16 +67,30 @@ export class NativeAudioEngine implements PlaybackEngine {
   }
 
   async load(options: { url: string; title?: string; artist?: string; coverUrl?: string; position?: number }) {
+    console.log(`[INSTRUMENTATION_3] URL recibida por NativeAudioEngine: ${options.url}`);
     this.state.status = 'LOADING';
     diagnostics.logEvent(`Loading url: ${options.url}`);
     diagnostics.updateState('LOADING');
     this.emit('STATE_CHANGED', this.state);
-    await NativeAudio.load(options);
+    try {
+      await NativeAudio.load(options);
+      console.log(`[DEBUG_NATIVE] NativeAudio.load() finished`);
+    } catch (e: any) {
+      console.error(`[DEBUG_NATIVE] NativeAudio.load() error:`, e);
+      throw e;
+    }
   }
   
   async play() { 
+    console.log(`[DEBUG_NATIVE] NativeAudioEngine.play() called`);
     diagnostics.logEvent('Called play()');
-    await NativeAudio.play(); 
+    try {
+      await NativeAudio.play(); 
+      console.log(`[DEBUG_NATIVE] NativeAudio.play() finished`);
+    } catch(e) {
+      console.error(`[DEBUG_NATIVE] NativeAudio.play() error:`, e);
+      throw e;
+    }
   }
   
   async pause() { 
@@ -153,67 +174,145 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
   const isPlayingRef = useRef(context.isPlaying);
   const loadingUrlRef = useRef("");
 
+  // Helper to extract Video ID from URL
+  const extractVideoId = (url) => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
+    } catch {
+      return null;
+    }
+  };
+
   // Sync URL changes to Native Engine
   useEffect(() => {
+    console.log(`[DEBUG_BRIDGE] Sync URL changes triggered. context.currentUrl: ${context.currentUrl}`);
     if (context.currentUrl && context.currentUrl !== currentUrlRef.current) {
+      console.log(`[DEBUG_BRIDGE] URL changed from ${currentUrlRef.current} to ${context.currentUrl}`);
       currentUrlRef.current = context.currentUrl;
       const displayTrack = context.displayTracks?.[context.currentTrackIndex];
       loadingUrlRef.current = context.currentUrl;
       
-      const loadParams = {
-        url: context.currentUrl,
-        title: displayTrack?.title || "Audio Track",
-        artist: displayTrack?.artist || "Unknown Artist",
-        coverUrl: displayTrack?.imageUrl || displayTrack?.thumbnail || "",
-        position: context.pendingSeekPosRef?.current ? context.pendingSeekPosRef.current * 1000 : 0
+      const loadVideo = async () => {
+        let videoId = null;
+        let audioUrl = null;
+        try {
+          videoId = extractVideoId(context.currentUrl);
+          if (!videoId) throw new Error('Invalid Video ID');
+          
+          console.log('[DEBUG_BRIDGE] Resolving audio url for ' + videoId);
+          if (USE_CLIENT_STREAM_RESOLVER) {
+            try {
+              audioUrl = await resolveClientStream(videoId);
+              console.log('[CLIENT_RESOLVER] Resolved successfully from client');
+            } catch (err) {
+              console.warn('[CLIENT_RESOLVER_FAILED] Client resolver failed, falling back to backend resolver', err);
+              audioUrl = await resolveAudioUrl(videoId);
+            }
+          } else {
+            audioUrl = await resolveAudioUrl(videoId);
+          }
+          console.log('[DEBUG_BRIDGE] Resolved direct audio URL length:', audioUrl.length);
+
+          const loadParams = {
+            url: audioUrl,
+            title: displayTrack?.title || "Audio Track",
+            artist: displayTrack?.artist || "Unknown Artist",
+            coverUrl: displayTrack?.imageUrl || displayTrack?.thumbnail || "",
+            position: context.pendingSeekPosRef?.current ? context.pendingSeekPosRef.current * 1000 : 0
+          };
+          
+          console.log(`[DEBUG_BRIDGE] Calling engine.load() with params`);
+          await engine.load(loadParams);
+          console.log(`[DEBUG_BRIDGE] engine.load() completed successfully.`);
+          
+          if (context.isPlaying) {
+            console.log(`[DEBUG_BRIDGE] context.isPlaying is true, calling engine.play()`);
+            await engine.play();
+          }
+        } catch (e) {
+          console.warn("[DEBUG_BRIDGE] NativeAudioBridge load error", e);
+          console.error(`[RESOLVER_DEBUG]\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nerror:`, e);
+          if (context.consecutiveErrorsRef) {
+             context.consecutiveErrorsRef.current += 1;
+          }
+          if (context.handleNextRef?.current) {
+             setTimeout(() => context.handleNextRef.current(true), 1500);
+          }
+        }
       };
       
-      engine.load(loadParams).then(() => {
-        if (context.isPlaying) {
-          engine.play().catch(e => console.warn("NativeAudioBridge play error", e));
-        }
-      }).catch(e => {
-        console.warn("NativeAudioBridge load error", e);
-      });
+      loadVideo();
     } else if (!context.currentUrl) {
+      console.log(`[DEBUG_BRIDGE] No URL, stopping engine`);
       engine.stop().catch(() => {});
     }
   }, [context.currentUrl]); // Notice we don't depend on context.isPlaying here to avoid reload loops
 
   // Initial load if url is present on mount
   useEffect(() => {
+    console.log(`[DEBUG_BRIDGE] Initial load check. context.currentUrl: ${context.currentUrl}`);
     if (context.currentUrl && currentUrlRef.current === context.currentUrl && loadingUrlRef.current !== context.currentUrl) {
       loadingUrlRef.current = context.currentUrl;
       const displayTrack = context.displayTracks?.[context.currentTrackIndex];
-      const loadParams = {
-        url: context.currentUrl,
-        title: displayTrack?.title || "Audio Track",
-        artist: displayTrack?.artist || "Unknown Artist",
-        coverUrl: displayTrack?.imageUrl || displayTrack?.thumbnail || "",
-        position: context.pendingSeekPosRef?.current ? context.pendingSeekPosRef.current * 1000 : 0
-      };
-      engine.load(loadParams).then(() => {
-        if (context.isPlaying) {
-          engine.play().catch(e => console.warn("NativeAudioBridge play error", e));
+      
+      const loadVideo = async () => {
+        let videoId = null;
+        let audioUrl = null;
+        try {
+          videoId = extractVideoId(context.currentUrl);
+          if (!videoId) throw new Error('Invalid Video ID');
+          
+          console.log('[DEBUG_BRIDGE] Resolving audio url for ' + videoId);
+          audioUrl = await resolveAudioUrl(videoId);
+
+          const loadParams = {
+            url: audioUrl,
+            title: displayTrack?.title || "Audio Track",
+            artist: displayTrack?.artist || "Unknown Artist",
+            coverUrl: displayTrack?.imageUrl || displayTrack?.thumbnail || "",
+            position: context.pendingSeekPosRef?.current ? context.pendingSeekPosRef.current * 1000 : 0
+          };
+          
+          console.log(`[DEBUG_BRIDGE] Initial loading engine`);
+          await engine.load(loadParams);
+          
+          if (context.isPlaying) {
+            console.log(`[DEBUG_BRIDGE] Initial load complete, playing`);
+            await engine.play();
+          }
+        } catch (e) {
+          console.warn("[DEBUG_BRIDGE] NativeAudioBridge initial load error", e);
+          console.error(`[RESOLVER_DEBUG]\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nerror:`, e);
+          if (context.consecutiveErrorsRef) {
+             context.consecutiveErrorsRef.current += 1;
+          }
+          if (context.handleNextRef?.current) {
+             setTimeout(() => context.handleNextRef.current(true), 1500);
+          }
         }
-      }).catch(e => {
-        console.warn("NativeAudioBridge initial load error", e);
-      });
+      };
+      
+      loadVideo();
     }
   }, []);
 
   // Sync Play/Pause
   useEffect(() => {
+    console.log(`[DEBUG_BRIDGE] Sync Play/Pause triggered. context.isPlaying: ${context.isPlaying}, ref: ${isPlayingRef.current}`);
     if (context.isPlaying !== isPlayingRef.current) {
       isPlayingRef.current = context.isPlaying;
       if (context.isPlaying) {
         if (engine.getState().status === "PAUSED") {
-          engine.resume().catch(() => engine.play().catch(e => console.warn("NativeAudioBridge play error", e)));
+          console.log(`[DEBUG_BRIDGE] Engine paused, calling resume()`);
+          engine.resume().catch(() => engine.play().catch(e => console.warn("[DEBUG_BRIDGE] NativeAudioBridge play error", e)));
         } else {
-          engine.play().catch(e => console.warn("NativeAudioBridge play error", e));
+          console.log(`[DEBUG_BRIDGE] Engine not paused, calling play()`);
+          engine.play().catch(e => console.warn("[DEBUG_BRIDGE] NativeAudioBridge play error", e));
         }
       } else {
-        engine.pause().catch(e => console.warn("NativeAudioBridge pause error", e));
+        console.log(`[DEBUG_BRIDGE] Calling pause()`);
+        engine.pause().catch(e => console.warn("[DEBUG_BRIDGE] NativeAudioBridge pause error", e));
       }
     }
   }, [context.isPlaying]);
@@ -286,6 +385,7 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
 
     const handleError = (info: any) => {
        console.warn("NativeAudioBridge Error:", info);
+       console.error(`[RESOLVER_DEBUG] NativeAudio fatal error:`, info);
        if (context.consecutiveErrorsRef) {
          context.consecutiveErrorsRef.current += 1;
          if (context.consecutiveErrorsRef.current > 4) {

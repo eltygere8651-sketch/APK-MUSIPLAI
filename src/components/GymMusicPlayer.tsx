@@ -2249,6 +2249,15 @@ export default function GymMusicPlayer({ unreadRepliesCount = 0 }: GymMusicPlaye
     : "";
   const currentUrl = currentUrlRaw.replace("music.youtube.com", "www.youtube.com");
 
+  useEffect(() => {
+    if (currentUrlRaw) {
+      console.log(`[INSTRUMENTATION_1] GymMusicPlayer received original URL: ${currentUrlRaw}`);
+    }
+    if (currentUrl) {
+      console.log(`[INSTRUMENTATION_2] GymMusicPlayer sent URL to PlaybackEngine: ${currentUrl}`);
+    }
+  }, [currentUrlRaw, currentUrl]);
+
   const reactPlayerConfig = useMemo(() => {
     const vars: any = {
       origin: typeof window !== "undefined" ? window.location.origin : "",

@@ -1,4 +1,7 @@
-import { PlaybackEngine } from './types';
+const fs = require('fs');
+let content = fs.readFileSync('src/engine/PlaybackEngineFactory.ts', 'utf8');
+
+const replacement = `import { PlaybackEngine } from './types';
 import { ReactPlayerEngine } from './ReactPlayerEngine';
 import { NativeAudioEngine } from './NativeAudioEngine';
 import { Capacitor } from '@capacitor/core';
@@ -14,13 +17,17 @@ export class PlaybackEngineFactory {
       const platform = Capacitor.getPlatform();
       
       if (USE_NATIVE_AUDIO && (platform === 'android' || platform === 'ios')) {
-        console.log(`[ENGINE_FACTORY] Using NativeAudioEngine for platform: ${platform}`);
+        console.log(\`[ENGINE_FACTORY] Using NativeAudioEngine for platform: \${platform}\`);
         this.instance = new NativeAudioEngine();
       } else {
-        console.log(`[ENGINE_FACTORY] Using ReactPlayerEngine for platform: ${platform}`);
+        console.log(\`[ENGINE_FACTORY] Using ReactPlayerEngine for platform: \${platform}\`);
         this.instance = new ReactPlayerEngine();
       }
     }
     return this.instance;
   }
 }
+`;
+
+fs.writeFileSync('src/engine/PlaybackEngineFactory.ts', replacement, 'utf8');
+console.log("Patched Factory successfully");
