@@ -1127,6 +1127,95 @@ app.get("/api/youtube/playlist-info", async (req, res) => {
     });
   }
 });
+app.get("/api/native-audio/resolve", async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) {
+    return res.json({ success: false, reason: "MISSING_VIDEO_ID" });
+  }
+  try {
+    let ytClient = ytClients.get("GLOBAL") || yt;
+    if (!ytClient) {
+      ytClient = await import_youtubei.Innertube.create({ generate_session_locally: true });
+    }
+    try {
+      const info = await ytClient.getInfo(videoId);
+      const formats = info.streaming_data?.adaptive_formats || [];
+      let targetFormat = formats.find((f) => f.itag === 140);
+      if (!targetFormat) {
+        targetFormat = formats.find((f) => f.itag === 251);
+      }
+      if (targetFormat) {
+        const audioUrl = targetFormat.url || (targetFormat.decipher ? targetFormat.decipher(ytClient.session.player) : null);
+        if (audioUrl) {
+          return res.json({
+            success: true,
+            videoId,
+            title: info.basic_info?.title || "Audio Track",
+            duration: info.basic_info?.duration || 0,
+            audioUrl,
+            mimeType: targetFormat.mime_type,
+            itag: targetFormat.itag,
+            expires: Date.now() + 6 * 60 * 60 * 1e3
+          });
+        }
+      }
+    } catch (e) {
+    }
+    for (const instance of PIPED_INSTANCES) {
+      try {
+        const pRes = await fetch(`${instance}/streams/${videoId}`);
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          const pFormats = pData.audioStreams || [];
+          let pTarget = pFormats.find((f) => f.itag === 140);
+          if (!pTarget) pTarget = pFormats.find((f) => f.itag === 251);
+          if (pTarget && pTarget.url) {
+            return res.json({
+              success: true,
+              videoId,
+              title: pData.title || "Audio Track",
+              duration: pData.duration || 0,
+              audioUrl: pTarget.url,
+              mimeType: pTarget.mimeType,
+              itag: pTarget.itag,
+              expires: Date.now() + 6 * 60 * 60 * 1e3
+            });
+          }
+        }
+      } catch (err) {
+      }
+    }
+    return res.json({ success: false, reason: "NO_AUDIO_STREAM_FOUND" });
+  } catch (error) {
+    return res.json({ success: false, reason: "NO_AUDIO_STREAM_FOUND" });
+  }
+});
+app.get("/api/native-audio/test", async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).send("Missing ID");
+  try {
+    const protocol = req.headers["x-forwarded-proto"] || "http";
+    const host = req.headers.host || `localhost:${PORT}`;
+    const resolveUrl = `${protocol}://${host}/api/native-audio/resolve?id=${videoId}`;
+    const r = await fetch(resolveUrl);
+    const data = await r.json();
+    if (!data.success) {
+      return res.json({ status: "Failed", data });
+    }
+    const headReq = await fetch(data.audioUrl, { method: "HEAD" });
+    return res.json({
+      status: "Success",
+      url: data.audioUrl,
+      httpStatus: headReq.status,
+      contentType: headReq.headers.get("content-type"),
+      contentLength: headReq.headers.get("content-length"),
+      acceptRanges: headReq.headers.get("accept-ranges"),
+      mimeType: data.mimeType
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 app.get("/api/youtube/playlist", async (req, res) => {
   const playlistId = req.query.id;
   const titleFallback = req.query.title;
