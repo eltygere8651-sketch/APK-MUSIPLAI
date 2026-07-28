@@ -187,7 +187,7 @@ app.get("/api/import-link", async (req, res) => {
           }
         });
 
-        let playlistName = "Lista Spotify";
+        let playlistName = "Lista Flux Music S";
         let playlistCover = "";
         let playlistDescription = "";
         const tracks: any[] = [];
@@ -218,7 +218,7 @@ app.get("/api/import-link", async (req, res) => {
                   const trackTitle = decodeHtml(trk.title || trk.name);
                   const artistName = decodeHtml(
                     trk.subtitle ||
-                    (trk.artists ? trk.artists.map((a: any) => a.name).join(", ") : "Artista Spotify")
+                    (trk.artists ? trk.artists.map((a: any) => a.name).join(", ") : "Artista Flux Music S")
                   );
                   const artwork = trk.album?.images?.[0]?.url || playlistCover;
                   const durationSec = trk.duration
@@ -241,7 +241,7 @@ app.get("/api/import-link", async (req, res) => {
                 }
               });
             } catch (parseErr) {
-              console.warn("Spotify JSON parse warning:", parseErr);
+              console.warn("Flux Music S parse warning:", parseErr);
             }
           }
         }
@@ -256,10 +256,10 @@ app.get("/api/import-link", async (req, res) => {
 
             // Generate representative tracks with names for the playlist
             const defaultSongs = [
-              { title: "Canción 1 - " + playlistName, artist: oembed.author_name || "Spotify" },
-              { title: "Canción 2 - " + playlistName, artist: oembed.author_name || "Spotify" },
-              { title: "Canción 3 - " + playlistName, artist: oembed.author_name || "Spotify" },
-              { title: "Canción 4 - " + playlistName, artist: oembed.author_name || "Spotify" }
+              { title: "Canción 1 - " + playlistName, artist: oembed.author_name || "Flux Music S" },
+              { title: "Canción 2 - " + playlistName, artist: oembed.author_name || "Flux Music S" },
+              { title: "Canción 3 - " + playlistName, artist: oembed.author_name || "Flux Music S" },
+              { title: "Canción 4 - " + playlistName, artist: oembed.author_name || "Flux Music S" }
             ];
 
             defaultSongs.forEach((s, idx) => {
@@ -281,7 +281,7 @@ app.get("/api/import-link", async (req, res) => {
         }
 
         if (!playlistDescription) {
-          playlistDescription = `Lista importada desde Spotify (${tracks.length} canciones)`;
+          playlistDescription = `Lista importada a través de Flux Music S (${tracks.length} canciones)`;
         }
 
         const newPlaylist = {
@@ -298,15 +298,15 @@ app.get("/api/import-link", async (req, res) => {
         res.json({
           playlist: newPlaylist,
           tracks,
-          summary: `Se ha importado la lista de Spotify "${playlistName}" con ${tracks.length} canciones reproducibles.`
+          summary: `Se ha importado la lista de Flux Music S "${playlistName}" con ${tracks.length} canciones.`
         });
         return;
 
       } else if (trackMatch) {
         const trackId = trackMatch[1];
         const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(trimmed)}`);
-        let title = "Canción de Spotify";
-        let artist = "Artista de Spotify";
+        let title = "Canción de Flux Music S";
+        let artist = "Artista Flux Music S";
         let artwork = "";
 
         if (oembedRes.ok) {
@@ -321,7 +321,7 @@ app.get("/api/import-link", async (req, res) => {
           id: singleTrackId,
           title,
           artist,
-          album: "Sencillo Spotify",
+          album: "Sencillo Flux Music S",
           duration: 200,
           url: `/api/audio-stream?id=${singleTrackId}&q=${encodeURIComponent(title + " " + artist)}`,
           artworkUrl: artwork,
@@ -333,7 +333,7 @@ app.get("/api/import-link", async (req, res) => {
         const newPlaylist = {
           id: `playlist_sp_tr_${trackId}_${timestamp}`,
           name: title,
-          description: `Canción de Spotify por ${artist}`,
+          description: `Tema de Flux Music S por ${artist}`,
           coverUrl: artwork || undefined,
           trackIds: [singleTrack.id],
           createdAt: timestamp,
@@ -344,7 +344,7 @@ app.get("/api/import-link", async (req, res) => {
         res.json({
           playlist: newPlaylist,
           tracks: [singleTrack],
-          summary: `Se ha importado el tema de Spotify "${title}" de ${artist}.`
+          summary: `Se ha importado el tema de Flux Music S "${title}" de ${artist}.`
         });
         return;
       }
@@ -363,7 +363,7 @@ app.get("/api/import-link", async (req, res) => {
           }
         });
 
-        let playlistName = "Lista de YouTube";
+        let playlistName = "Lista Flux Music";
         let playlistCover = "";
         let playlistDescription = "";
         const tracks: any[] = [];
@@ -395,7 +395,7 @@ app.get("/api/import-link", async (req, res) => {
                 .trim();
 
               let trackTitle = clean;
-              let trackArtist = "YouTube";
+              let trackArtist = "Flux Music";
 
               if (clean.includes(" - ")) {
                 const parts = clean.split(" - ");
@@ -409,7 +409,7 @@ app.get("/api/import-link", async (req, res) => {
               const trackId = `yt_${vId}_${timestamp}`;
               tracks.push({
                 id: trackId,
-                title: trackTitle || "Tema de YouTube",
+                title: trackTitle || "Tema de Flux Music",
                 artist: trackArtist,
                 album: playlistName,
                 duration: 210,
@@ -435,7 +435,7 @@ app.get("/api/import-link", async (req, res) => {
               if (!seenIds.has(vId) && vTitle) {
                 seenIds.add(vId);
                 let trackTitle = decodeHtml(vTitle);
-                let trackArtist = "YouTube";
+                let trackArtist = "Flux Music";
 
                 if (trackTitle.includes(" - ")) {
                   const parts = trackTitle.split(" - ");
@@ -482,7 +482,7 @@ app.get("/api/import-link", async (req, res) => {
                 tracks.push({
                   id: trackId,
                   title: `Pista ${tracks.length + 1}`,
-                  artist: "YouTube",
+                  artist: "Flux Music",
                   album: playlistName,
                   duration: 210,
                   url: `/api/audio-stream?id=${trackId}&youtubeId=${vId}`,
@@ -512,7 +512,7 @@ app.get("/api/import-link", async (req, res) => {
             tracks.push({
               id: tid,
               title: playlistName,
-              artist: oembed.author_name || "YouTube",
+              artist: oembed.author_name || "Flux Music",
               album: playlistName,
               duration: 240,
               url: vid ? `/api/audio-stream?id=${tid}&youtubeId=${vid}` : "",
@@ -525,7 +525,7 @@ app.get("/api/import-link", async (req, res) => {
         }
 
         if (!playlistDescription) {
-          playlistDescription = `Lista importada desde YouTube (${tracks.length} canciones)`;
+          playlistDescription = `Lista importada a través de Flux Music (${tracks.length} canciones)`;
         }
 
         const newPlaylist = {
@@ -542,21 +542,21 @@ app.get("/api/import-link", async (req, res) => {
         res.json({
           playlist: newPlaylist,
           tracks,
-          summary: `Se ha importado la lista de YouTube "${playlistName}" con ${tracks.length} canciones.`
+          summary: `Se ha importado la lista de Flux Music "${playlistName}" con ${tracks.length} canciones.`
         });
         return;
 
       } else {
-        // Single YouTube Video
+        // Single Video
         const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(trimmed)}&format=json`);
         if (!oembedRes.ok) {
-          res.status(400).json({ error: "No se pudo obtener la información del video de YouTube" });
+          res.status(400).json({ error: "No se pudo obtener la información del tema de Flux Music" });
           return;
         }
 
         const oembed = await oembedRes.json();
-        const rawTitle = oembed.title || "Video de YouTube";
-        const author = oembed.author_name || "YouTube";
+        const rawTitle = oembed.title || "Tema de Flux Music";
+        const author = oembed.author_name || "Flux Music";
         const artwork = oembed.thumbnail_url || "";
 
         let trackTitle = rawTitle;
@@ -572,7 +572,7 @@ app.get("/api/import-link", async (req, res) => {
           trackTitle = parts.slice(1).join(" – ").trim();
         }
 
-        // Extract YouTube video ID if possible
+        // Extract video ID if possible
         const vMatch = trimmed.match(/(?:v=|\/vi\/|youtu\.be\/|\/v\/|\/embed\/|\/shorts\/|\/watch\?v=|[?&]v=)([a-zA-Z0-9_-]{11})/);
         const singleVId = vMatch ? vMatch[1] : "";
         const singleTrackId = `yt_track_${singleVId || timestamp}`;
@@ -584,7 +584,7 @@ app.get("/api/import-link", async (req, res) => {
           id: singleTrackId,
           title: trackTitle,
           artist: trackArtist,
-          album: "Sencillo YouTube",
+          album: "Sencillo Flux Music",
           duration: 210,
           url: streamUrl,
           artworkUrl: artwork,
@@ -596,7 +596,7 @@ app.get("/api/import-link", async (req, res) => {
         const newPlaylist = {
           id: `playlist_yt_tr_${timestamp}`,
           name: trackTitle,
-          description: `Tema de YouTube por ${trackArtist}`,
+          description: `Tema de Flux Music por ${trackArtist}`,
           coverUrl: artwork || undefined,
           trackIds: [singleTrack.id],
           createdAt: timestamp,
@@ -607,13 +607,13 @@ app.get("/api/import-link", async (req, res) => {
         res.json({
           playlist: newPlaylist,
           tracks: [singleTrack],
-          summary: `Se ha importado el tema de YouTube "${trackTitle}" de ${trackArtist}.`
+          summary: `Se ha importado el tema de Flux Music "${trackTitle}" de ${trackArtist}.`
         });
         return;
       }
     }
 
-    res.status(400).json({ error: "Formato no soportado. Proporciona un enlace público de Spotify o YouTube." });
+    res.status(400).json({ error: "Formato no soportado. Proporciona un enlace público válido." });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Error al procesar el enlace" });
   }

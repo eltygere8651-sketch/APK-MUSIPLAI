@@ -33,24 +33,22 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [addedPlaylistIds, setAddedPlaylistIds] = useState<Set<string>>(new Set());
 
-  // Load explore playlists from Firestore / LocalCache
-  const loadExploreData = async (force = false) => {
-    if (force) setRefreshing(true);
-    else setLoading(true);
-
+  // Load explore playlists automatically from Firestore on mount
+  const loadExploreData = async () => {
+    setLoading(true);
     try {
-      const results = await FirebaseSyncService.fetchExplorePlaylists(force);
+      // Pass forceRefresh = true to guarantee fetching latest community playlists without clicking
+      const results = await FirebaseSyncService.fetchExplorePlaylists(true);
       setExplorePlaylists(results);
     } catch (err) {
       console.warn('Error loading explore data:', err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadExploreData(false);
+    loadExploreData();
   }, []);
 
   // Track which playlists user already added
@@ -59,19 +57,13 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
     setAddedPlaylistIds(existingIds);
   }, [userPlaylists]);
 
-  // Filter logic
+  // Filter logic (Search only)
   const filteredPlaylists = explorePlaylists.filter((pl) => {
-    const matchesSearch =
+    return (
       !searchQuery.trim() ||
       pl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (pl.description && pl.description.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    if (!matchesSearch) return false;
-
-    if (selectedCategory === 'spotify') return pl.sourceFormat === 'spotify_structure';
-    if (selectedCategory === 'youtube') return pl.sourceFormat === 'yt_structure';
-    if (selectedCategory === 'm3u') return pl.sourceFormat === 'm3u' || pl.sourceFormat === 'pls';
-    return true;
+      (pl.description && pl.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
   });
 
   const handleAddPlaylistToLibrary = (pl: Playlist) => {
@@ -117,13 +109,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           <Compass className="w-4 h-4 text-emerald-400" />
           Explorar
         </span>
-        <button
-          onClick={() => loadExploreData(true)}
-          disabled={refreshing}
-          className="p-2 text-neutral-400 hover:text-white"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
-        </button>
+        <div className="w-8"></div>
       </div>
 
       {/* Hero Banner */}
@@ -133,60 +119,28 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Comunidad & Playlists Públicas</span>
+              <span>Todas las Playlists Públicas</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Explorar Playlists
             </h1>
             <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed">
-              Descubre y añade listas compartidas por la comunidad o importadas de Spotify y YouTube directamente a tu biblioteca.
+              Descubre y añade listas compartidas por la comunidad directamente a tu biblioteca.
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => loadExploreData(true)}
-              disabled={refreshing}
-              className="flex items-center gap-2 bg-neutral-900/90 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/60 font-semibold text-xs px-4 py-2.5 rounded-2xl transition-all shadow-md"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
-              <span>{refreshing ? 'Sincronizando...' : 'Actualizar'}</span>
-            </button>
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="mt-6 pt-6 border-t border-neutral-800/60 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-72">
+        {/* Search Bar */}
+        <div className="mt-6 pt-6 border-t border-neutral-800/60 flex items-center">
+          <div className="relative w-full max-w-md">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar playlists públicas..."
-              className="w-full pl-10 pr-4 py-2 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              placeholder="Buscar por nombre o descripción..."
+              className="w-full pl-10 pr-4 py-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 transition-colors"
             />
-          </div>
-
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
-            {[
-              { id: 'all', label: 'Todas' },
-              { id: 'spotify', label: 'Spotify' },
-              { id: 'youtube', label: 'YouTube' },
-              { id: 'm3u', label: 'Archivos M3U' },
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedCategory === cat.id
-                    ? 'bg-emerald-500 text-neutral-950 font-bold shadow-md shadow-emerald-500/10'
-                    : 'bg-neutral-900/80 text-neutral-400 hover:text-white border border-neutral-800'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -371,9 +325,9 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   {playlist.sourceFormat && (
                     <span className="uppercase text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 tracking-wider">
                       {playlist.sourceFormat.includes('sp')
-                        ? 'Spotify'
+                        ? 'Flux Music S'
                         : playlist.sourceFormat.includes('yt')
-                        ? 'YouTube'
+                        ? 'Flux Music'
                         : 'Custom'}
                     </span>
                   )}

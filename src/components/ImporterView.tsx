@@ -220,7 +220,7 @@ export const ImporterView: React.FC<ImporterViewProps> = ({
           
           <h3 className="text-lg font-bold text-white mb-2">Importar desde Enlace</h3>
           <p className="text-xs text-neutral-400 mb-8">
-            Pega un enlace público de Spotify o YouTube para importar automáticamente la lista de canciones.
+            Pega un enlace público de Flux Music o Flux Music S para sincronizar e importar la lista de canciones.
           </p>
 
           <form onSubmit={handleStructureImport} className="flex flex-col gap-4 mt-auto">
@@ -228,7 +228,7 @@ export const ImporterView: React.FC<ImporterViewProps> = ({
               type="url"
               value={publicUrl}
               onChange={(e) => setPublicUrl(e.target.value)}
-              placeholder="https://open.spotify.com/playlist/..."
+              placeholder="Enlace público de Flux Music / Flux Music S..."
               className="w-full px-4 py-3.5 bg-black border border-neutral-800 rounded-xl text-sm text-white focus:outline-none focus:border-neutral-500 placeholder-neutral-600"
             />
             <button
