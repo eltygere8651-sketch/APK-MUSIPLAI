@@ -91,7 +91,7 @@ public class NativeAudioPlugin extends Plugin {
                         Log.e(TAG, "[DEBUG_NATIVE_JAVA] onPlayerError: ", error);
                         JSObject ret = new JSObject();
                         ret.put("error", error.getMessage() != null ? error.getMessage() : error.toString());
-                        ret.put("errorCodeName", error.errorCodeName);
+                        ret.put("errorCodeName", error.getErrorCodeName());
                         ret.put("fatal", true);
 
                         StringBuilder sb = new StringBuilder();
@@ -288,7 +288,7 @@ public class NativeAudioPlugin extends Plugin {
             ret.put("duration", mediaController.getDuration());
             if (mediaController.getPlayerError() != null) {
                 ret.put("playerError", mediaController.getPlayerError().getMessage());
-                ret.put("playerErrorCode", mediaController.getPlayerError().errorCodeName);
+                ret.put("playerErrorCode", mediaController.getPlayerError().getErrorCodeName());
             }
         } else {
             ret.put("ready", false);
