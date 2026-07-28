@@ -1,6 +1,8 @@
 package com.remixgym.app;
 
+import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
 import android.util.Log;
@@ -14,7 +16,17 @@ public class NativeAudioService extends MediaSessionService {
         super.onCreate();
         Log.d(TAG, "onCreate");
         
-        ExoPlayer player = new ExoPlayer.Builder(this).build();
+        DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
+                .setUserAgent("Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36")
+                .setAllowCrossProtocolRedirects(true);
+
+        DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
+                .setDataSourceFactory(httpDataSourceFactory);
+
+        ExoPlayer player = new ExoPlayer.Builder(this)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build();
+
         mediaSession = new MediaSession.Builder(this, player).build();
     }
 
