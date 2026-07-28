@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">fluxplay</string>
-    <string name="title_activity_main">fluxplay</string>
+    <string name="app_name">Flux Music</string>
+    <string name="title_activity_main">Flux Music</string>
     <string name="package_name">com.fluxplay.app</string>
     <string name="custom_url_scheme">com.fluxplay.app</string>
 </resources>

@@ -1,6 +1,6 @@
 {
-  "name": "Remix: APK: Bienve Music APP",
-  "description": "",
+  "name": "Flux Player",
+  "description": "Universal Music Player & Library Manager for Local Files, Playlists, and Audio Sources",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

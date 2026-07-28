@@ -1,7 +1,7 @@
 {
-  "name": "Flux Music",
-  "short_name": "FluxMusic",
-  "description": "Una experiencia musical fluida y premium con integración de YouTube.",
+  "name": "Flux Player",
+  "short_name": "FluxPlayer",
+  "description": "Reproductor de Música Local y Universal con listas M3U y soporte IndexedDB.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080809",

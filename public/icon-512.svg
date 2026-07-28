@@ -1,17 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
-  <!-- Premium Black background -->
-  <rect width="512" height="512" fill="#000000"/>
-  
-  <!-- Outer glowing green ring -->
-  <circle cx="256" cy="256" r="172" fill="none" stroke="#1ED760" stroke-width="14" style="filter: drop-shadow(0px 0px 30px rgba(30,215,96,0.8));" />
-  
-  <!-- Intermediate sophisticated slate ring -->
-  <circle cx="256" cy="256" r="136" fill="none" stroke="#475569" stroke-width="4" />
-  
-  <!-- Inner green ring -->
-  <circle cx="256" cy="256" r="102" fill="none" stroke="#1ED760" stroke-width="12" />
-  
-  <!-- Core audio signature glowing dots -->
-  <circle cx="214" cy="256" r="20" fill="#1ED760" style="filter: drop-shadow(0px 0px 10px rgba(30,215,96,0.8));" />
-  <circle cx="298" cy="256" r="20" fill="#1ED760" style="filter: drop-shadow(0px 0px 10px rgba(30,215,96,0.8));" />
+  <defs>
+    <!-- Background Radial Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#142e1d" />
+      <stop offset="60%" stop-color="#08120b" />
+      <stop offset="100%" stop-color="#030604" />
+    </radialGradient>
+
+    <!-- Neon Emerald Primary Gradient -->
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="50%" stop-color="#1ED760" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Metallic Ring Gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1ED760" />
+      <stop offset="50%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <!-- Glowing Filters -->
+    <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Circular Outer Canvas Base -->
+  <circle cx="256" cy="256" r="256" fill="url(#bgGrad)" />
+
+  <!-- Outer Ring Accent -->
+  <circle cx="256" cy="256" r="242" fill="none" stroke="url(#ringGrad)" stroke-width="10" opacity="0.9" filter="url(#subtleGlow)" />
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#10B981" stroke-width="2" opacity="0.3" stroke-dasharray="8 8" />
+
+  <!-- Audio Equalizer / Waveform Wings -->
+  <!-- Left Waveform bars -->
+  <rect x="110" y="216" width="16" height="80" rx="8" fill="url(#emeraldGrad)" opacity="0.85" />
+  <rect x="138" y="176" width="16" height="160" rx="8" fill="url(#emeraldGrad)" filter="url(#subtleGlow)" />
+  <rect x="166" y="136" width="16" height="240" rx="8" fill="url(#emeraldGrad)" filter="url(#neonGlow)" />
+
+  <!-- Center Flux Dynamic Play Icon -->
+  <path d="M 216 140 C 216 128 230 120 240 128 L 360 240 C 370 248 370 264 360 272 L 240 384 C 230 392 216 384 216 372 Z" 
+        fill="url(#emeraldGrad)" 
+        filter="url(#neonGlow)" />
+
+  <!-- Right Equalizer bar -->
+  <rect x="382" y="196" width="16" height="120" rx="8" fill="url(#emeraldGrad)" opacity="0.9" filter="url(#subtleGlow)" />
+  <rect x="410" y="226" width="16" height="60" rx="8" fill="url(#emeraldGrad)" opacity="0.6" />
+
+  <!-- Ambient Core Pulse Point -->
+  <circle cx="256" cy="256" r="20" fill="#FFFFFF" opacity="0.9" filter="url(#neonGlow)" />
 </svg>
