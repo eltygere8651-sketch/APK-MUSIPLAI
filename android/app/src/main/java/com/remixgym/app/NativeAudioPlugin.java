@@ -40,30 +40,37 @@ public class NativeAudioPlugin extends Plugin {
                     public void onPlaybackStateChanged(int playbackState) {
                         Log.d(TAG, "[DEBUG_NATIVE_JAVA] onPlaybackStateChanged: " + playbackState);
                         JSObject ret = new JSObject();
+                        String stateStr = "IDLE";
                         switch (playbackState) {
                             case Player.STATE_IDLE:
                                 Log.d(TAG, "[DEBUG_NATIVE_JAVA] STATE_IDLE");
-                                ret.put("status", "IDLE");
+                                stateStr = "IDLE";
                                 break;
                             case Player.STATE_BUFFERING:
                                 Log.d(TAG, "[DEBUG_NATIVE_JAVA] STATE_BUFFERING");
-                                ret.put("status", "BUFFERING");
+                                stateStr = "BUFFERING";
                                 JSObject buff = new JSObject();
                                 buff.put("isBuffering", true);
                                 notifyListeners("onBuffering", buff);
                                 break;
                             case Player.STATE_READY:
                                 Log.d(TAG, "[DEBUG_NATIVE_JAVA] STATE_READY (PlayWhenReady: " + mediaController.getPlayWhenReady() + ")");
-                                ret.put("status", mediaController.getPlayWhenReady() ? "PLAYING" : "PAUSED");
+                                stateStr = mediaController.getPlayWhenReady() ? "PLAYING" : "PAUSED";
                                 JSObject buffEnd = new JSObject();
                                 buffEnd.put("isBuffering", false);
                                 notifyListeners("onBuffering", buffEnd);
                                 break;
                             case Player.STATE_ENDED:
                                 Log.d(TAG, "[DEBUG_NATIVE_JAVA] STATE_ENDED");
-                                ret.put("status", "STOPPED");
+                                stateStr = "STOPPED";
                                 break;
                         }
+                        ret.put("status", stateStr);
+                        ret.put("playbackStateCode", playbackState);
+                        ret.put("playWhenReady", mediaController.getPlayWhenReady());
+                        ret.put("isPlaying", mediaController.isPlaying());
+                        ret.put("bufferedPosition", mediaController.getBufferedPosition());
+                        ret.put("currentPosition", mediaController.getCurrentPosition());
                         notifyListeners("onStateChanged", ret);
                     }
                     
@@ -72,6 +79,10 @@ public class NativeAudioPlugin extends Plugin {
                         Log.d(TAG, "[DEBUG_NATIVE_JAVA] onIsPlayingChanged: " + isPlaying);
                         JSObject ret = new JSObject();
                         ret.put("status", isPlaying ? "PLAYING" : "PAUSED");
+                        ret.put("isPlaying", isPlaying);
+                        ret.put("playWhenReady", mediaController != null && mediaController.getPlayWhenReady());
+                        ret.put("bufferedPosition", mediaController != null ? mediaController.getBufferedPosition() : 0);
+                        ret.put("currentPosition", mediaController != null ? mediaController.getCurrentPosition() : 0);
                         notifyListeners("onStateChanged", ret);
                     }
                     
@@ -79,8 +90,27 @@ public class NativeAudioPlugin extends Plugin {
                     public void onPlayerError(androidx.media3.common.PlaybackException error) {
                         Log.e(TAG, "[DEBUG_NATIVE_JAVA] onPlayerError: ", error);
                         JSObject ret = new JSObject();
-                        ret.put("error", error.getMessage());
+                        ret.put("error", error.getMessage() != null ? error.getMessage() : error.toString());
+                        ret.put("errorCodeName", error.errorCodeName);
                         ret.put("fatal", true);
+
+                        StringBuilder sb = new StringBuilder();
+                        Throwable cause = error;
+                        int httpCode = -1;
+                        while (cause != null) {
+                            sb.append(cause.getClass().getName()).append(": ").append(cause.getMessage()).append("\n");
+                            if (cause instanceof androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                                httpCode = ((androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) cause).responseCode;
+                            }
+                            for (StackTraceElement ste : cause.getStackTrace()) {
+                                sb.append("   at ").append(ste.toString()).append("\n");
+                            }
+                            cause = cause.getCause();
+                            if (cause != null) sb.append("Caused by: ");
+                        }
+                        ret.put("stackTrace", sb.toString());
+                        ret.put("httpResponseCode", httpCode);
+
                         notifyListeners("onError", ret);
                     }
                 });
@@ -239,6 +269,33 @@ public class NativeAudioPlugin extends Plugin {
         }
     }
     
+    @PluginMethod
+    public void getDebugInfo(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (mediaController != null) {
+            ret.put("ready", true);
+            ret.put("playbackStateCode", mediaController.getPlaybackState());
+            int state = mediaController.getPlaybackState();
+            String stateStr = "STATE_IDLE";
+            if (state == Player.STATE_BUFFERING) stateStr = "STATE_BUFFERING";
+            else if (state == Player.STATE_READY) stateStr = "STATE_READY";
+            else if (state == Player.STATE_ENDED) stateStr = "STATE_ENDED";
+            ret.put("playbackState", stateStr);
+            ret.put("playWhenReady", mediaController.getPlayWhenReady());
+            ret.put("isPlaying", mediaController.isPlaying());
+            ret.put("bufferedPosition", mediaController.getBufferedPosition());
+            ret.put("currentPosition", mediaController.getCurrentPosition());
+            ret.put("duration", mediaController.getDuration());
+            if (mediaController.getPlayerError() != null) {
+                ret.put("playerError", mediaController.getPlayerError().getMessage());
+                ret.put("playerErrorCode", mediaController.getPlayerError().errorCodeName);
+            }
+        } else {
+            ret.put("ready", false);
+        }
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void destroy(PluginCall call) {
         if (mediaController != null) {

@@ -1,11 +1,13 @@
-const USE_CLIENT_STREAM_RESOLVER = true;
 import { resolveAudioUrl } from '../lib/ClientResolver';
 import { resolveClientStream } from '../lib/ClientStreamResolver';
 import { Capacitor } from '@capacitor/core';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PlaybackEngine, PlaybackState, EngineEvent } from './types';
 import { NativeAudio } from '../plugins/NativeAudio';
 import { diagnostics } from './NativeAudioDiagnostics';
+import { NativeAudioDebugOverlay, NativeDebugData, DEBUG_NATIVE_AUDIO } from '../components/NativeAudioDebugOverlay';
+
+const USE_CLIENT_STREAM_RESOLVER = true;
 
 export class NativeAudioEngine implements PlaybackEngine {
   private listeners: Record<string, Function[]> = {};
@@ -174,8 +176,60 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
   const isPlayingRef = useRef(context.isPlaying);
   const loadingUrlRef = useRef("");
 
+  const [debugData, setDebugData] = useState<NativeDebugData>({
+    videoId: null,
+    originalUrl: context.currentUrl || null,
+    finalUrl: null,
+    httpResponseCode: null,
+    media3State: 'STATE_IDLE',
+    isPlaying: context.isPlaying || false,
+    playWhenReady: false,
+    bufferedPosition: 0,
+    currentPosition: 0,
+    errorMessage: null,
+    playbackException: null,
+    onPlayerError: null,
+    stackTrace: null,
+    lastUpdated: new Date().toLocaleTimeString()
+  });
+
+  const testHttpHead = async (url: string) => {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      setDebugData(prev => ({
+        ...prev,
+        httpResponseCode: `${res.status} ${res.statusText}`,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
+    } catch (err: any) {
+      setDebugData(prev => ({
+        ...prev,
+        httpResponseCode: `Fetch HEAD error: ${err?.message || err}`,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
+    }
+  };
+
+  const refreshNativeInfo = async () => {
+    try {
+      const info = await NativeAudio.getDebugInfo();
+      setDebugData(prev => ({
+        ...prev,
+        media3State: info.playbackState || prev.media3State,
+        isPlaying: info.isPlaying ?? prev.isPlaying,
+        playWhenReady: info.playWhenReady ?? prev.playWhenReady,
+        bufferedPosition: info.bufferedPosition ?? prev.bufferedPosition,
+        currentPosition: info.currentPosition ?? prev.currentPosition,
+        errorMessage: info.playerError ? `[ExoPlayer Error]: ${info.playerError}` : prev.errorMessage,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
+    } catch (e: any) {
+      console.warn("getDebugInfo error", e);
+    }
+  };
+
   // Helper to extract Video ID from URL
-  const extractVideoId = (url) => {
+  const extractVideoId = (url: string) => {
     try {
       const urlObj = new URL(url);
       return urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
@@ -194,11 +248,22 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
       loadingUrlRef.current = context.currentUrl;
       
       const loadVideo = async () => {
-        let videoId = null;
-        let audioUrl = null;
+        let videoId: string | null = null;
+        let audioUrl: string | null = null;
         try {
           videoId = extractVideoId(context.currentUrl);
           if (!videoId) throw new Error('Invalid Video ID');
+
+          setDebugData(prev => ({
+            ...prev,
+            videoId,
+            originalUrl: context.currentUrl,
+            errorMessage: null,
+            playbackException: null,
+            onPlayerError: null,
+            stackTrace: null,
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
           
           console.log('[DEBUG_BRIDGE] Resolving audio url for ' + videoId);
           if (USE_CLIENT_STREAM_RESOLVER) {
@@ -213,6 +278,14 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
             audioUrl = await resolveAudioUrl(videoId);
           }
           console.log('[DEBUG_BRIDGE] Resolved direct audio URL length:', audioUrl.length);
+
+          setDebugData(prev => ({
+            ...prev,
+            finalUrl: audioUrl,
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
+
+          testHttpHead(audioUrl);
 
           const loadParams = {
             url: audioUrl,
@@ -230,15 +303,22 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
             console.log(`[DEBUG_BRIDGE] context.isPlaying is true, calling engine.play()`);
             await engine.play();
           }
-        } catch (e) {
+        } catch (e: any) {
           console.warn("[DEBUG_BRIDGE] NativeAudioBridge load error", e);
-          console.error(`[RESOLVER_DEBUG]\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nerror:`, e);
+          console.error(`[INSTRUMENTED_ERROR]\nMotivo: Fallo en loadVideo (NativeAudioBridge)\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nExcepción: ${e?.message || e}\nStack: ${e?.stack || 'N/A'}`);
+          
+          setDebugData(prev => ({
+            ...prev,
+            errorMessage: e?.message || String(e),
+            playbackException: `Load Exception: ${e?.message || e}`,
+            stackTrace: e?.stack || 'No stack trace available',
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
+
           if (context.consecutiveErrorsRef) {
              context.consecutiveErrorsRef.current += 1;
           }
-          if (context.handleNextRef?.current) {
-             setTimeout(() => context.handleNextRef.current(true), 1500);
-          }
+          context.setIsPlaying?.(false);
         }
       };
       
@@ -257,14 +337,33 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
       const displayTrack = context.displayTracks?.[context.currentTrackIndex];
       
       const loadVideo = async () => {
-        let videoId = null;
-        let audioUrl = null;
+        let videoId: string | null = null;
+        let audioUrl: string | null = null;
         try {
           videoId = extractVideoId(context.currentUrl);
           if (!videoId) throw new Error('Invalid Video ID');
+
+          setDebugData(prev => ({
+            ...prev,
+            videoId,
+            originalUrl: context.currentUrl,
+            errorMessage: null,
+            playbackException: null,
+            onPlayerError: null,
+            stackTrace: null,
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
           
           console.log('[DEBUG_BRIDGE] Resolving audio url for ' + videoId);
           audioUrl = await resolveAudioUrl(videoId);
+
+          setDebugData(prev => ({
+            ...prev,
+            finalUrl: audioUrl,
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
+
+          testHttpHead(audioUrl);
 
           const loadParams = {
             url: audioUrl,
@@ -281,15 +380,22 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
             console.log(`[DEBUG_BRIDGE] Initial load complete, playing`);
             await engine.play();
           }
-        } catch (e) {
+        } catch (e: any) {
           console.warn("[DEBUG_BRIDGE] NativeAudioBridge initial load error", e);
-          console.error(`[RESOLVER_DEBUG]\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nerror:`, e);
+          console.error(`[INSTRUMENTED_ERROR]\nMotivo: Fallo en initial loadVideo (NativeAudioBridge)\nvideoId: ${videoId}\ncurrentUrl: ${context.currentUrl}\naudioUrl: ${audioUrl}\nExcepción: ${e?.message || e}\nStack: ${e?.stack || 'N/A'}`);
+          
+          setDebugData(prev => ({
+            ...prev,
+            errorMessage: e?.message || String(e),
+            playbackException: `Initial Load Exception: ${e?.message || e}`,
+            stackTrace: e?.stack || 'No stack trace available',
+            lastUpdated: new Date().toLocaleTimeString()
+          }));
+
           if (context.consecutiveErrorsRef) {
              context.consecutiveErrorsRef.current += 1;
           }
-          if (context.handleNextRef?.current) {
-             setTimeout(() => context.handleNextRef.current(true), 1500);
-          }
+          context.setIsPlaying?.(false);
         }
       };
       
@@ -327,7 +433,17 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
 
   // Listen to Native Engine events and update React context
   useEffect(() => {
-    const handleStateChange = (state: PlaybackState) => {
+    const handleStateChange = (state: PlaybackState | any) => {
+      setDebugData(prev => ({
+        ...prev,
+        media3State: state.status || prev.media3State,
+        isPlaying: state.isPlaying ?? (state.status === 'PLAYING'),
+        playWhenReady: state.playWhenReady ?? prev.playWhenReady,
+        bufferedPosition: state.bufferedPosition ?? prev.bufferedPosition,
+        currentPosition: state.currentPosition ?? prev.currentPosition,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
+
       if (state.status === 'PLAYING') {
         context.isBufferingRef.current = false;
         context.wasUnexpectedlyPausedRef.current = false;
@@ -347,7 +463,7 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
       }
     };
 
-    const handleProgress = (state: PlaybackState) => {
+    const handleProgress = (state: PlaybackState | any) => {
       // Update position
       const currentPosMs = state.position;
       if (document.visibilityState === "visible") {
@@ -361,6 +477,13 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
       if (state.duration > 0 && (context.duration === 0 || document.visibilityState === "visible")) {
         context.setDuration(state.duration);
       }
+
+      setDebugData(prev => ({
+        ...prev,
+        currentPosition: currentPosMs,
+        bufferedPosition: state.duration || prev.bufferedPosition,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
 
       // Handle Early Skips and Track Ended (since NativeAudio might not trigger ENDED perfectly)
       if (state.duration > 0 && (state.duration - currentPosMs) < 2000) {
@@ -378,6 +501,12 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
     };
 
     const handleEnded = () => {
+      setDebugData(prev => ({
+        ...prev,
+        media3State: 'STATE_ENDED',
+        isPlaying: false,
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
       if (!context.hasEarlySkippedRef?.current && context.handleNextRef?.current) {
          context.handleNextRef.current(true);
       }
@@ -385,22 +514,19 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
 
     const handleError = (info: any) => {
        console.warn("NativeAudioBridge Error:", info);
-       console.error(`[RESOLVER_DEBUG] NativeAudio fatal error:`, info);
-       if (context.consecutiveErrorsRef) {
-         context.consecutiveErrorsRef.current += 1;
-         if (context.consecutiveErrorsRef.current > 4) {
-           context.setIsPlaying?.(false);
-           context.consecutiveErrorsRef.current = 0;
-           return;
-         }
-       }
-       if (info.fatal) {
-         setTimeout(() => {
-           if (context.handleNextRef?.current) {
-             context.handleNextRef.current(true);
-           }
-         }, 1500);
-       }
+       console.error(`[INSTRUMENTED_ERROR]\nMotivo: Error emitido por NativeAudioEngine (onPlayerError)\ninfo:`, JSON.stringify(info));
+       
+       setDebugData(prev => ({
+         ...prev,
+         errorMessage: info.error || info.message || 'Error emitido por NativeAudio',
+         onPlayerError: info.errorCodeName || info.error || 'onPlayerError triggered',
+         playbackException: info.error || JSON.stringify(info),
+         stackTrace: info.stackTrace || prev.stackTrace || 'Sin stack trace',
+         httpResponseCode: info.httpResponseCode && info.httpResponseCode !== -1 ? info.httpResponseCode : prev.httpResponseCode,
+         lastUpdated: new Date().toLocaleTimeString()
+       }));
+
+       context.setIsPlaying?.(false);
     };
 
     engine.on('STATE_CHANGED', handleStateChange);
@@ -416,6 +542,12 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
     };
   }, [engine, context]);
 
-  return null;
+  return (
+    <NativeAudioDebugOverlay
+      debugData={debugData}
+      onRefreshNative={refreshNativeInfo}
+      onTestFetch={() => debugData.finalUrl && testHttpHead(debugData.finalUrl)}
+    />
+  );
 };
 

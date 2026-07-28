@@ -11,6 +11,7 @@ export interface NativeAudioPlugin {
   next(): Promise<void>;
   previous(): Promise<void>;
   destroy(): Promise<void>;
+  getDebugInfo(): Promise<any>;
 
   addListener(
     eventName: 'onStateChanged',

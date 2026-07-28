@@ -14,4 +14,5 @@ export class NativeAudioWeb extends WebPlugin implements NativeAudioPlugin {
   async next(): Promise<void> { console.log('NativeAudio next'); }
   async previous(): Promise<void> { console.log('NativeAudio previous'); }
   async destroy(): Promise<void> { console.log('NativeAudio destroy'); }
+  async getDebugInfo(): Promise<any> { return { ready: false, platform: 'web' }; }
 }
