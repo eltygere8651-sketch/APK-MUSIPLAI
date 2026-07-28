@@ -879,6 +879,17 @@ export class AudioEngine {
     this.currentIndex = 0;
   }
 
+  public updateTrackFavorite(trackId: string, isFavorite: boolean) {
+    if (this.state.currentTrack && this.state.currentTrack.id === trackId) {
+      this.state.currentTrack = { ...this.state.currentTrack, isFavorite };
+    }
+    this.queue = this.queue.map(t => t.id === trackId ? { ...t, isFavorite } : t);
+    this.shuffledQueue = this.shuffledQueue.map(t => t.id === trackId ? { ...t, isFavorite } : t);
+    this.emit('stateChange');
+    this.emit('queueChange', this.getQueue());
+    this.saveState();
+  }
+
   private getQueueTrack(index: number): Track | null {
     const activeQueue = this.getQueue();
     return activeQueue[index] || null;

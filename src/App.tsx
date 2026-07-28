@@ -19,6 +19,7 @@ const PlaylistView = React.lazy(() => import('./components/PlaylistView').then(m
 const ImporterView = React.lazy(() => import('./components/ImporterView').then(m => ({ default: m.ImporterView })));
 const SettingsView = React.lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
 const SearchView = React.lazy(() => import('./components/SearchView').then(m => ({ default: m.SearchView })));
+const ExploreView = React.lazy(() => import('./components/ExploreView').then(m => ({ default: m.ExploreView })));
 
 
 import { AuthModal } from './components/AuthModal';
@@ -40,7 +41,7 @@ export function App() {
   const [playbackState, setPlaybackState] = useState<PlaybackState>(audioEngine.getState());
   const [queue, setQueue] = useState<Track[]>(audioEngine.getQueue());
 
-  const [currentTab, setCurrentTab] = useState<string>('library');
+  const [currentTab, setCurrentTab] = useState<string>('explore');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isFullScreenPlayer, setIsFullScreenPlayer] = useState<boolean>(false);
@@ -108,7 +109,9 @@ export function App() {
 
   // --- Firebase Auth & Sync Subscriptions ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser({
           uid: currentUser.uid,
@@ -118,18 +121,93 @@ export function App() {
           isAnonymous: currentUser.isAnonymous,
         });
 
-        // Try syncing Cloud preferences
+        // 1. Fetch & Apply Cloud Settings
         const remoteSettings = await FirebaseSyncService.fetchSyncedSettings();
         if (remoteSettings) {
           setSettings(remoteSettings);
           await localStorageService.saveSettings(remoteSettings);
         }
+
+        // 2. Fetch & Restore Cloud Favorites (Track objects with URLs)
+        const remoteFavorites = await FirebaseSyncService.fetchSyncedFavorites();
+        if (remoteFavorites && remoteFavorites.length > 0) {
+          await localStorageService.saveTracksBulk(remoteFavorites);
+          setTracks((prev) => {
+            const map = new Map<string, Track>();
+            prev.forEach((t) => map.set(t.id, t));
+            remoteFavorites.forEach((t) => map.set(t.id, { ...t, isFavorite: true }));
+            return Array.from(map.values());
+          });
+        }
+
+        // 3. Fetch & Restore Cloud Playlists (Playlists with tracks & URLs)
+        const remotePlaylists = await FirebaseSyncService.fetchSyncedPlaylists();
+        if (remotePlaylists && remotePlaylists.length > 0) {
+          for (const pl of remotePlaylists) {
+            if (pl.tracks && pl.tracks.length > 0) {
+              await localStorageService.saveTracksBulk(pl.tracks);
+              setTracks((prev) => {
+                const map = new Map<string, Track>();
+                prev.forEach((t) => map.set(t.id, t));
+                pl.tracks!.forEach((t) => map.set(t.id, t));
+                return Array.from(map.values());
+              });
+            }
+            await localStorageService.savePlaylist(pl);
+          }
+          setPlaylists((prev) => {
+            const map = new Map<string, Playlist>();
+            prev.forEach((p) => map.set(p.id, p));
+            remotePlaylists.forEach((p) => map.set(p.id, p));
+            return Array.from(map.values());
+          });
+        }
+
+        // 4. Subscribe to Real-time Cloud Changes
+        if (unsubSnapshot) unsubSnapshot();
+        unsubSnapshot = FirebaseSyncService.subscribeToCloudData(async (cloudData) => {
+          if (cloudData.settings) {
+            setSettings(cloudData.settings);
+            await localStorageService.saveSettings(cloudData.settings);
+          }
+          if (cloudData.favorites && cloudData.favorites.length > 0) {
+            await localStorageService.saveTracksBulk(cloudData.favorites);
+            setTracks((prev) => {
+              const map = new Map<string, Track>();
+              prev.forEach((t) => map.set(t.id, t));
+              cloudData.favorites!.forEach((t) => map.set(t.id, { ...t, isFavorite: true }));
+              return Array.from(map.values());
+            });
+          }
+          if (cloudData.playlists && cloudData.playlists.length > 0) {
+            for (const pl of cloudData.playlists) {
+              if (pl.tracks && pl.tracks.length > 0) {
+                await localStorageService.saveTracksBulk(pl.tracks);
+              }
+              await localStorageService.savePlaylist(pl);
+            }
+            setPlaylists((prev) => {
+              const map = new Map<string, Playlist>();
+              prev.forEach((p) => map.set(p.id, p));
+              cloudData.playlists!.forEach((p) => map.set(p.id, p));
+              return Array.from(map.values());
+            });
+          }
+        });
+
       } else {
         setUser(null);
+        if (unsubSnapshot) {
+          unsubSnapshot();
+          unsubSnapshot = null;
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubSnapshot) unsubSnapshot();
+    };
   }, []);
 
   // --- AudioEngine Event Listeners ---
@@ -153,26 +231,63 @@ export function App() {
   };
 
   const handleToggleFavorite = async (trackId: string) => {
-    const newFavState = await localStorageService.toggleFavoriteTrack(trackId);
-    setTracks((prev) =>
-      prev.map((t) => (t.id === trackId ? { ...t, isFavorite: newFavState } : t))
-    );
+    // Locate target track from state, active player or current queue
+    let targetTrack = tracks.find((t) => t.id === trackId);
+    if (!targetTrack && audioEngine.getState().currentTrack?.id === trackId) {
+      targetTrack = audioEngine.getState().currentTrack || undefined;
+    }
+    if (!targetTrack) {
+      const queue = audioEngine.getQueue();
+      targetTrack = queue.find((t) => t.id === trackId);
+    }
 
-    // Sync to Cloud
-    const updatedTracks = tracks.map((t) => (t.id === trackId ? { ...t, isFavorite: newFavState } : t));
-    const favoriteIds = updatedTracks.filter((t) => t.isFavorite).map((t) => t.id);
-    FirebaseSyncService.syncFavorites(favoriteIds);
+    if (!targetTrack) return;
+
+    const newFavState = !targetTrack.isFavorite;
+    const updatedTrack: Track = { ...targetTrack, isFavorite: newFavState };
+
+    // Persist to local IndexedDB
+    await localStorageService.saveTrack(updatedTrack);
+
+    // Update React state
+    setTracks((prev) => {
+      const exists = prev.some((t) => t.id === trackId);
+      if (exists) {
+        return prev.map((t) => (t.id === trackId ? updatedTrack : t));
+      } else {
+        return [updatedTrack, ...prev];
+      }
+    });
+
+    // Update AudioEngine internal state & notify listeners
+    audioEngine.updateTrackFavorite(trackId, newFavState);
+
+    // Sync to Firebase Cloud
+    const currentTracks = tracks.some((t) => t.id === trackId)
+      ? tracks.map((t) => (t.id === trackId ? updatedTrack : t))
+      : [updatedTrack, ...tracks];
+    const favoriteTracks = currentTracks.filter((t) => t.isFavorite);
+    FirebaseSyncService.syncFavorites(favoriteTracks);
   };
 
   const handleDeleteTrack = async (trackId: string) => {
     await localStorageService.deleteTrack(trackId);
-    setTracks((prev) => prev.filter((t) => t.id !== trackId));
+    setTracks((prev) => {
+      const updated = prev.filter((t) => t.id !== trackId);
+      FirebaseSyncService.syncFavorites(updated.filter((t) => t.isFavorite));
+      return updated;
+    });
   };
 
   // --- Import Handlers ---
   const handleImportTracks = async (items: { track: Track; blob?: Blob }[]) => {
     await localStorageService.saveTracksWithBlobsBulk(items);
     await reloadLocalData();
+    const importedFavs = items.map((i) => i.track).filter((t) => t.isFavorite);
+    if (importedFavs.length > 0) {
+      const allFavs = [...tracks, ...importedFavs].filter((t) => t.isFavorite);
+      FirebaseSyncService.syncFavorites(allFavs);
+    }
   };
 
   const handleImportPlaylist = async (newPlaylist: Playlist, playlistTracks?: Track[]) => {
@@ -182,8 +297,9 @@ export function App() {
     await localStorageService.savePlaylist(newPlaylist);
     await reloadLocalData();
 
-    // Sync Playlists
-    FirebaseSyncService.syncPlaylists([...playlists, newPlaylist]);
+    // Sync Playlists with track URLs
+    const allKnownTracks = playlistTracks ? [...tracks, ...playlistTracks] : tracks;
+    FirebaseSyncService.syncPlaylists([...playlists, newPlaylist], allKnownTracks);
   };
 
   const handleCreatePlaylist = async (name: string, description?: string) => {
@@ -198,12 +314,36 @@ export function App() {
     };
     await localStorageService.savePlaylist(newPlaylist);
     setPlaylists((prev) => [...prev, newPlaylist]);
-    FirebaseSyncService.syncPlaylists([...playlists, newPlaylist]);
+    FirebaseSyncService.syncPlaylists([...playlists, newPlaylist], tracks);
   };
 
   const handleDeletePlaylist = async (id: string) => {
     await localStorageService.deletePlaylist(id);
-    setPlaylists((prev) => prev.filter((p) => p.id !== id));
+    const updated = playlists.filter((p) => p.id !== id);
+    setPlaylists(updated);
+    FirebaseSyncService.syncPlaylists(updated, tracks);
+  };
+
+  const handleUpdatePlaylist = async (id: string, name: string, description?: string) => {
+    const existing = playlists.find((p) => p.id === id);
+    if (!existing) return;
+
+    const updatedPlaylist: Playlist = {
+      ...existing,
+      name,
+      description,
+      updatedAt: Date.now(),
+    };
+
+    await localStorageService.savePlaylist(updatedPlaylist);
+    setPlaylists((prev) => prev.map((p) => (p.id === id ? updatedPlaylist : p)));
+
+    const matchingTracks = tracks.filter((t) => updatedPlaylist.trackIds.includes(t.id));
+    FirebaseSyncService.syncPlaylists(
+      playlists.map((p) => (p.id === id ? updatedPlaylist : p)),
+      tracks
+    );
+    FirebaseSyncService.publishToExplore(updatedPlaylist, matchingTracks);
   };
 
   const handleUpdateSettings = async (newSettings: Partial<UserSettings>) => {
@@ -239,6 +379,19 @@ export function App() {
         <main className="flex-1 overflow-hidden p-4 sm:p-6 pb-36 sm:pb-32 bg-black flex flex-col">
         <React.Suspense fallback={<div className="flex items-center justify-center h-full w-full pt-20"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
 
+          {currentTab === 'explore' && (
+            <ExploreView
+              userPlaylists={playlists}
+              userTracks={tracks}
+              currentTrackId={playbackState.currentTrack?.id}
+              isPlaying={playbackState.isPlaying}
+              onImportPlaylist={handleImportPlaylist}
+              onPlayTrack={handlePlayTrack}
+              onToggleFavorite={handleToggleFavorite}
+              onClose={() => setCurrentTab('library')}
+            />
+          )}
+
           {currentTab === 'search' && (
             <SearchView 
               onPlayTrack={handlePlayTrack} 
@@ -267,6 +420,7 @@ export function App() {
               currentTrackId={playbackState.currentTrack?.id}
               isPlaying={playbackState.isPlaying}
               onCreatePlaylist={handleCreatePlaylist}
+              onUpdatePlaylist={handleUpdatePlaylist}
               onDeletePlaylist={handleDeletePlaylist}
               onPlayTrack={handlePlayTrack}
               onToggleFavorite={handleToggleFavorite}

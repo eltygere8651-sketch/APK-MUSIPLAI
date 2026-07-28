@@ -149,6 +149,19 @@ app.get("/api/audio-stream", async (req, res) => {
   }
 });
 
+function decodeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\\u0026/g, '&')
+    .replace(/\\u0027/g, "'")
+    .replace(/\\u0022/g, '"');
+}
+
 app.get("/api/import-link", async (req, res) => {
   const targetUrl = req.query.url as string;
   if (!targetUrl || !targetUrl.trim()) {
@@ -176,40 +189,54 @@ app.get("/api/import-link", async (req, res) => {
 
         let playlistName = "Lista Spotify";
         let playlistCover = "";
+        let playlistDescription = "";
         const tracks: any[] = [];
 
         if (embedRes.ok) {
           const html = await embedRes.text();
           const scriptMatch = html.match(/<script id="(?:__NEXT_DATA__|resource)"[^>]*>([^<]+)<\/script>/);
 
+          const metaDesc = html.match(/<meta property="og:description" content="([^"]+)">/i);
+          if (metaDesc && metaDesc[1]) {
+            playlistDescription = decodeHtml(metaDesc[1]);
+          }
+
           if (scriptMatch && scriptMatch[1]) {
             try {
               const data = JSON.parse(scriptMatch[1]);
               const entity = data.props?.pageProps?.state?.data?.entity || data.props?.pageProps?.entity || data;
-              playlistName = entity.name || data.name || playlistName;
-              playlistCover = entity.images?.[0]?.url || "";
+              playlistName = decodeHtml(entity.name || data.name || playlistName);
+              playlistCover = entity.images?.[0]?.url || entity.coverArt?.sources?.[0]?.url || "";
+              if (entity.description) {
+                playlistDescription = decodeHtml(entity.description);
+              }
 
-              const rawItems = entity.tracks?.items || entity.tracks || [];
+              const rawItems = entity.trackList || entity.tracks?.items || entity.tracks || [];
               rawItems.forEach((item: any, idx: number) => {
                 const trk = item.track || item;
-                if (trk && trk.name) {
-                  const artistName = trk.artists ? trk.artists.map((a: any) => a.name).join(", ") : "Artista Desconocido";
+                if (trk && (trk.title || trk.name)) {
+                  const trackTitle = decodeHtml(trk.title || trk.name);
+                  const artistName = decodeHtml(
+                    trk.subtitle ||
+                    (trk.artists ? trk.artists.map((a: any) => a.name).join(", ") : "Artista Spotify")
+                  );
                   const artwork = trk.album?.images?.[0]?.url || playlistCover;
-                  const audioUrl = trk.preview_url || "";
-                  const durationSec = trk.duration_ms ? Math.round(trk.duration_ms / 1000) : 180;
+                  const durationSec = trk.duration
+                    ? Math.round(trk.duration / 1000)
+                    : (trk.duration_ms ? Math.round(trk.duration_ms / 1000) : 180);
 
                   const trackId = `sp_${playlistId}_${idx}_${timestamp}`;
                   tracks.push({
                     id: trackId,
-                    title: trk.name,
+                    title: trackTitle,
                     artist: artistName,
-                    album: trk.album?.name || playlistName,
+                    album: playlistName,
                     duration: durationSec,
-                    url: `/api/audio-stream?id=${trackId}&q=${encodeURIComponent(trk.name + " " + artistName)}`,
+                    url: `/api/audio-stream?id=${trackId}&q=${encodeURIComponent(trackTitle + " " + artistName)}`,
                     artworkUrl: artwork,
                     addedAt: timestamp - idx * 10,
                     sourceType: "imported_playlist",
-                    spotifyId: trk.id || undefined,
+                    spotifyId: trk.uri || trk.id || undefined,
                   });
                 }
               });
@@ -253,10 +280,14 @@ app.get("/api/import-link", async (req, res) => {
           }
         }
 
+        if (!playlistDescription) {
+          playlistDescription = `Lista importada desde Spotify (${tracks.length} canciones)`;
+        }
+
         const newPlaylist = {
           id: `playlist_sp_${playlistId}_${timestamp}`,
           name: playlistName,
-          description: `Lista importada desde Spotify (${tracks.length} canciones)`,
+          description: playlistDescription,
           coverUrl: playlistCover || undefined,
           trackIds: tracks.map((t) => t.id),
           createdAt: timestamp,
@@ -334,37 +365,42 @@ app.get("/api/import-link", async (req, res) => {
 
         let playlistName = "Lista de YouTube";
         let playlistCover = "";
+        let playlistDescription = "";
         const tracks: any[] = [];
+        const seenIds = new Set<string>();
 
         if (ytRes.ok) {
           const html = await ytRes.text();
-          // Extract playlist title
+          // Extract playlist title & description
           const titleMatch = html.match(/<meta property="og:title" content="([^"]+)">/);
-          if (titleMatch) playlistName = titleMatch[1];
+          if (titleMatch) playlistName = decodeHtml(titleMatch[1]);
 
-          // Extract video items using regex
-          const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}/g;
-          let match;
-          let idx = 0;
-          const seenIds = new Set<string>();
+          const descMatch = html.match(/<meta property="og:description" content="([^"]+)">/i);
+          if (descMatch && descMatch[1] && !descMatch[1].includes("Enjoy the videos and music you love")) {
+            playlistDescription = decodeHtml(descMatch[1]);
+          }
 
-          while ((match = videoRegex.exec(html)) !== null && idx < 30) {
-            const vId = match[1];
-            const vTitle = match[2];
-
-            if (!seenIds.has(vId) && vTitle) {
+          // Strategy A: contentId + accessibilityContext label
+          const regexA = /"contentId":"([a-zA-Z0-9_-]{11})"[\s\S]*?"accessibilityContext":\s*\{\s*"label":\s*"([^"]+)"\s*\}/g;
+          let m;
+          while ((m = regexA.exec(html)) !== null) {
+            const vId = m[1];
+            const rawLabel = m[2];
+            if (!seenIds.has(vId) && rawLabel && rawLabel !== "Reproducir todo") {
               seenIds.add(vId);
-              let trackTitle = vTitle;
+
+              let clean = decodeHtml(rawLabel)
+                .replace(/\s+\d+\s+(?:minutos?|minutes?|segundos?|seconds?|horas?|hours?).*$/gi, "")
+                .replace(/\s+\d+:\d+.*$/g, "")
+                .trim();
+
+              let trackTitle = clean;
               let trackArtist = "YouTube";
 
-              if (vTitle.includes(" - ")) {
-                const parts = vTitle.split(" - ");
+              if (clean.includes(" - ")) {
+                const parts = clean.split(" - ");
                 trackArtist = parts[0].trim();
                 trackTitle = parts.slice(1).join(" - ").trim();
-              } else if (vTitle.includes(" – ")) {
-                const parts = vTitle.split(" – ");
-                trackArtist = parts[0].trim();
-                trackTitle = parts.slice(1).join(" – ").trim();
               }
 
               const artwork = `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`;
@@ -373,18 +409,89 @@ app.get("/api/import-link", async (req, res) => {
               const trackId = `yt_${vId}_${timestamp}`;
               tracks.push({
                 id: trackId,
-                title: trackTitle,
+                title: trackTitle || "Tema de YouTube",
                 artist: trackArtist,
                 album: playlistName,
                 duration: 210,
                 url: `/api/audio-stream?id=${trackId}&youtubeId=${vId}`,
                 artworkUrl: artwork,
-                addedAt: timestamp - idx * 10,
+                addedAt: timestamp - tracks.length * 10,
                 sourceType: "imported_playlist",
                 youtubeId: vId,
               });
+            }
+          }
 
-              idx++;
+          // Strategy B: playlistVideoRenderer regex
+          if (tracks.length === 0) {
+            const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}/g;
+            let match;
+            let idx = 0;
+
+            while ((match = videoRegex.exec(html)) !== null && idx < 100) {
+              const vId = match[1];
+              const vTitle = match[2];
+
+              if (!seenIds.has(vId) && vTitle) {
+                seenIds.add(vId);
+                let trackTitle = decodeHtml(vTitle);
+                let trackArtist = "YouTube";
+
+                if (trackTitle.includes(" - ")) {
+                  const parts = trackTitle.split(" - ");
+                  trackArtist = parts[0].trim();
+                  trackTitle = parts.slice(1).join(" - ").trim();
+                } else if (trackTitle.includes(" – ")) {
+                  const parts = trackTitle.split(" – ");
+                  trackArtist = parts[0].trim();
+                  trackTitle = parts.slice(1).join(" – ").trim();
+                }
+
+                const artwork = `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`;
+                if (!playlistCover) playlistCover = artwork;
+
+                const trackId = `yt_${vId}_${timestamp}`;
+                tracks.push({
+                  id: trackId,
+                  title: trackTitle,
+                  artist: trackArtist,
+                  album: playlistName,
+                  duration: 210,
+                  url: `/api/audio-stream?id=${trackId}&youtubeId=${vId}`,
+                  artworkUrl: artwork,
+                  addedAt: timestamp - idx * 10,
+                  sourceType: "imported_playlist",
+                  youtubeId: vId,
+                });
+
+                idx++;
+              }
+            }
+          }
+
+          // Strategy C: Extract all videoIds in HTML
+          if (tracks.length === 0) {
+            const vMatches = [...html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)];
+            for (const vm of vMatches) {
+              const vId = vm[1];
+              if (!seenIds.has(vId)) {
+                seenIds.add(vId);
+                const artwork = `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`;
+                if (!playlistCover) playlistCover = artwork;
+                const trackId = `yt_${vId}_${timestamp}`;
+                tracks.push({
+                  id: trackId,
+                  title: `Pista ${tracks.length + 1}`,
+                  artist: "YouTube",
+                  album: playlistName,
+                  duration: 210,
+                  url: `/api/audio-stream?id=${trackId}&youtubeId=${vId}`,
+                  artworkUrl: artwork,
+                  addedAt: timestamp - tracks.length * 10,
+                  sourceType: "imported_playlist",
+                  youtubeId: vId,
+                });
+              }
             }
           }
         }
@@ -417,10 +524,14 @@ app.get("/api/import-link", async (req, res) => {
           }
         }
 
+        if (!playlistDescription) {
+          playlistDescription = `Lista importada desde YouTube (${tracks.length} canciones)`;
+        }
+
         const newPlaylist = {
           id: `playlist_yt_${playlistId}_${timestamp}`,
           name: playlistName,
-          description: `Lista importada desde YouTube (${tracks.length} canciones)`,
+          description: playlistDescription,
           coverUrl: playlistCover || undefined,
           trackIds: tracks.map((t) => t.id),
           createdAt: timestamp,

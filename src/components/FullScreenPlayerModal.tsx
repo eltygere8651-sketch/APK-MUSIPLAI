@@ -171,11 +171,12 @@ export const FullScreenPlayerModal: React.FC<FullScreenPlayerProps> = ({
 
         <button
           onClick={() => onToggleFavorite(currentTrack.id)}
-          className={`p-3 rounded-full bg-black/40 backdrop-blur-md transition-all hover:scale-105 ${
-            currentTrack.isFavorite ? 'text-emerald-400' : 'text-white'
+          className={`p-3 rounded-full bg-black/40 backdrop-blur-md transition-all hover:scale-110 active:scale-90 ${
+            currentTrack.isFavorite ? 'text-rose-500' : 'text-white/80 hover:text-white'
           }`}
+          title={currentTrack.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
         >
-          <Heart className={`w-5 h-5 ${currentTrack.isFavorite ? 'fill-current' : ''}`} />
+          <Heart className={`w-5 h-5 ${currentTrack.isFavorite ? 'fill-current text-rose-500' : ''}`} />
         </button>
       </div>
 
@@ -207,6 +208,15 @@ export const FullScreenPlayerModal: React.FC<FullScreenPlayerProps> = ({
                 {currentTrack.artist}
               </p>
             </div>
+            <button
+              onClick={() => onToggleFavorite(currentTrack.id)}
+              className={`p-3 rounded-full transition-all hover:scale-110 active:scale-95 ${
+                currentTrack.isFavorite ? 'text-rose-500 bg-rose-500/10' : 'text-neutral-400 hover:text-white bg-white/5'
+              }`}
+              title={currentTrack.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+            >
+              <Heart className={`w-6 h-6 ${currentTrack.isFavorite ? 'fill-current' : ''}`} />
+            </button>
           </div>
 
           {/* Progress Slider */}

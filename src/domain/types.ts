@@ -28,6 +28,7 @@ export interface Playlist {
   description?: string;
   coverUrl?: string;
   trackIds: string[];
+  tracks?: Track[];
   createdAt: number;
   updatedAt: number;
   isFavorite?: boolean;

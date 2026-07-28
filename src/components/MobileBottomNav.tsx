@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, ListMusic, DownloadCloud, Search } from 'lucide-react';
+import { Library, ListMusic, DownloadCloud, Search, Compass } from 'lucide-react';
 
 interface MobileBottomNavProps {
   currentTab: string;
@@ -13,6 +13,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   playlistsCount = 0,
 }) => {
   const navItems: {id: string; label: string; icon: any; badge?: number}[] = [
+    { id: 'explore', label: 'Explorar', icon: Compass },
     { id: 'search', label: 'Buscar', icon: Search },
     { id: 'library', label: 'Biblioteca', icon: Library },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
@@ -21,7 +22,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/85 backdrop-blur-3xl border-t border-neutral-900 md:hidden select-none pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-4 items-center h-[56px] px-2">
+      <div className="grid grid-cols-5 items-center h-[56px] px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;

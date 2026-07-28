@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, ListMusic, DownloadCloud, Search } from 'lucide-react';
+import { Library, ListMusic, DownloadCloud, Search, Compass } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
@@ -13,6 +13,7 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
   playlistsCount,
 }) => {
   const navItems: {id: string; label: string; icon: any; badge?: number}[] = [
+    { id: 'explore', label: 'Explorar', icon: Compass },
     { id: 'search', label: 'Buscar', icon: Search },
     { id: 'library', label: 'Biblioteca', icon: Library },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
