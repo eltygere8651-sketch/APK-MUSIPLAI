@@ -18,6 +18,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import java.util.Map;
+
 @CapacitorPlugin(name = "NativeAudio")
 public class NativeAudioPlugin extends Plugin {
     private static final String TAG = "NativeAudioPlugin";
@@ -86,6 +88,26 @@ public class NativeAudioPlugin extends Plugin {
                         notifyListeners("onStateChanged", ret);
                     }
                     
+                    @Override
+                    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                        Log.d(TAG, "[DEBUG_NATIVE_JAVA] onPlayWhenReadyChanged: playWhenReady=" + playWhenReady + ", reason=" + reason);
+                    }
+
+                    @Override
+                    public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                        Log.d(TAG, "[DEBUG_NATIVE_JAVA] onMediaItemTransition: mediaItem=" + (mediaItem != null ? mediaItem.mediaId : "null") + ", reason=" + reason);
+                    }
+
+                    @Override
+                    public void onRenderedFirstFrame() {
+                        Log.d(TAG, "[DEBUG_NATIVE_JAVA] onRenderedFirstFrame() triggered");
+                    }
+
+                    @Override
+                    public void onEvents(Player player, Player.Events events) {
+                        Log.d(TAG, "[DEBUG_NATIVE_JAVA] onEvents triggered, contains error? " + events.contains(Player.EVENT_PLAYER_ERROR));
+                    }
+
                     @Override
                     public void onPlayerError(androidx.media3.common.PlaybackException error) {
                         Log.e(TAG, "[DEBUG_NATIVE_JAVA] onPlayerError: ", error);
@@ -293,6 +315,17 @@ public class NativeAudioPlugin extends Plugin {
         } else {
             ret.put("ready", false);
         }
+
+        if (InstrumentedHttpDataSource.lastInstrumentation != null && !InstrumentedHttpDataSource.lastInstrumentation.isEmpty()) {
+            JSObject dsObj = new JSObject();
+            for (Map.Entry<String, Object> entry : InstrumentedHttpDataSource.lastInstrumentation.entrySet()) {
+                if (entry.getValue() != null) {
+                    dsObj.put(entry.getKey(), entry.getValue().toString());
+                }
+            }
+            ret.put("dataSourceInstrumentation", dsObj);
+        }
+
         call.resolve(ret);
     }
 

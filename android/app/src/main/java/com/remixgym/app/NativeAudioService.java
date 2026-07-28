@@ -20,8 +20,10 @@ public class NativeAudioService extends MediaSessionService {
                 .setUserAgent("Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36")
                 .setAllowCrossProtocolRedirects(true);
 
+        InstrumentedHttpDataSource.Factory instrumentedFactory = new InstrumentedHttpDataSource.Factory(httpDataSourceFactory);
+
         DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(httpDataSourceFactory);
+                .setDataSourceFactory(instrumentedFactory);
 
         ExoPlayer player = new ExoPlayer.Builder(this)
                 .setMediaSourceFactory(mediaSourceFactory)

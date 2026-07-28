@@ -17,6 +17,7 @@ export interface NativeDebugData {
   onPlayerError: string | null;
   stackTrace: string | null;
   lastUpdated: string | null;
+  dataSourceInstrumentation?: Record<string, any> | null;
 }
 
 interface Props {
@@ -171,6 +172,16 @@ export const NativeAudioDebugOverlay: React.FC<Props> = ({
           <span className="text-slate-400 block font-semibold">URL Final (audioUrl Media3):</span>
           <span className="text-sky-300 select-all break-all text-[10px]">{debugData.finalUrl || 'null'}</span>
         </div>
+
+        {/* DataSource Instrumentation */}
+        {debugData.dataSourceInstrumentation && (
+          <div className="bg-slate-900/90 p-2.5 rounded border border-amber-500/50 md:col-span-2 text-amber-200">
+            <span className="text-amber-400 font-bold block mb-1">📡 DATASOURCE INSTRUMENTATION (ExoPlayer Stream Inspection):</span>
+            <pre className="bg-black/90 p-2 rounded text-[10px] text-amber-300 overflow-x-auto whitespace-pre-wrap select-all border border-amber-900/50">
+              {JSON.stringify(debugData.dataSourceInstrumentation, null, 2)}
+            </pre>
+          </div>
+        )}
 
         {/* Errors Section */}
         {isError && (

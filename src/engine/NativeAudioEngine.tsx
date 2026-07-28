@@ -221,6 +221,7 @@ const NativeAudioBridge = ({ context, engine }: { context: any, engine: NativeAu
         bufferedPosition: info.bufferedPosition ?? prev.bufferedPosition,
         currentPosition: info.currentPosition ?? prev.currentPosition,
         errorMessage: info.playerError ? `[ExoPlayer Error]: ${info.playerError}` : prev.errorMessage,
+        dataSourceInstrumentation: info.dataSourceInstrumentation || prev.dataSourceInstrumentation,
         lastUpdated: new Date().toLocaleTimeString()
       }));
     } catch (e: any) {
