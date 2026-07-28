@@ -135,7 +135,7 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
 
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ OPEN FAILED in " + duration + " ms for URL: " + reqUrl, e);
             throw e;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             long duration = System.currentTimeMillis() - startTime;
             info.put("durationMs", duration);
             info.put("openException", e.getMessage() != null ? e.getMessage() : e.toString());
@@ -154,10 +154,7 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
             lastInstrumentation = info;
 
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ OPEN FAILED in " + duration + " ms for URL: " + reqUrl, e);
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            }
-            throw new HttpDataSourceException(e.getMessage(), dataSpec, androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED, HttpDataSourceException.TYPE_OPEN);
+            throw e;
         }
     }
 
@@ -189,13 +186,10 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ READ FAILED: " + e.getMessage(), e);
             lastInstrumentation.put("readException", e.getMessage());
             throw e;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ READ FAILED: " + e.getMessage(), e);
             lastInstrumentation.put("readException", e.getMessage());
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            }
-            throw new HttpDataSourceException(e.getMessage(), androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED, HttpDataSourceException.TYPE_READ);
+            throw e;
         }
     }
 
