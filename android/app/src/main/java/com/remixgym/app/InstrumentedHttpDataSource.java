@@ -39,20 +39,8 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
         }
 
         @Override
-        public HttpDataSource.Factory setDefaultRequestProperty(String name, String value) {
-            delegateFactory.setDefaultRequestProperty(name, value);
-            return this;
-        }
-
-        @Override
-        public HttpDataSource.Factory clearRequestProperty(String name) {
-            delegateFactory.clearRequestProperty(name);
-            return this;
-        }
-
-        @Override
-        public HttpDataSource.Factory clearAllRequestProperties() {
-            delegateFactory.clearAllRequestProperties();
+        public HttpDataSource.Factory setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
+            delegateFactory.setDefaultRequestProperties(defaultRequestProperties);
             return this;
         }
     }
@@ -118,7 +106,11 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
             long duration = System.currentTimeMillis() - startTime;
             info.put("durationMs", duration);
             info.put("openException", e.getMessage() != null ? e.getMessage() : e.toString());
-            info.put("responseCode", e.responseCode);
+            if (e instanceof HttpDataSource.InvalidResponseCodeException) {
+                info.put("responseCode", ((HttpDataSource.InvalidResponseCodeException) e).responseCode);
+            } else {
+                info.put("responseCode", -1);
+            }
 
             StringBuilder sb = new StringBuilder();
             Throwable cause = e;
