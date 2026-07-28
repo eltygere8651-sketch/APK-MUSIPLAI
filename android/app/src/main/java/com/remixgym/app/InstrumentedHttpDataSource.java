@@ -39,19 +39,19 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
         }
 
         @Override
-        public Factory setDefaultRequestProperty(String name, String value) {
+        public HttpDataSource.Factory setDefaultRequestProperty(String name, String value) {
             delegateFactory.setDefaultRequestProperty(name, value);
             return this;
         }
 
         @Override
-        public Factory clearRequestProperty(String name) {
+        public HttpDataSource.Factory clearRequestProperty(String name) {
             delegateFactory.clearRequestProperty(name);
             return this;
         }
 
         @Override
-        public Factory clearAllRequestProperties() {
+        public HttpDataSource.Factory clearAllRequestProperties() {
             delegateFactory.clearAllRequestProperties();
             return this;
         }
@@ -114,6 +114,27 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
             }
 
             return bytesToRead;
+        } catch (HttpDataSourceException e) {
+            long duration = System.currentTimeMillis() - startTime;
+            info.put("durationMs", duration);
+            info.put("openException", e.getMessage() != null ? e.getMessage() : e.toString());
+            info.put("responseCode", e.responseCode);
+
+            StringBuilder sb = new StringBuilder();
+            Throwable cause = e;
+            while (cause != null) {
+                sb.append(cause.getClass().getName()).append(": ").append(cause.getMessage()).append("\n");
+                for (StackTraceElement ste : cause.getStackTrace()) {
+                    sb.append("   at ").append(ste.toString()).append("\n");
+                }
+                cause = cause.getCause();
+                if (cause != null) sb.append("Caused by: ");
+            }
+            info.put("openStackTrace", sb.toString());
+            lastInstrumentation = info;
+
+            Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ OPEN FAILED in " + duration + " ms for URL: " + reqUrl, e);
+            throw e;
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             info.put("durationMs", duration);
@@ -130,16 +151,13 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
                 if (cause != null) sb.append("Caused by: ");
             }
             info.put("openStackTrace", sb.toString());
-
-            if (e instanceof HttpDataSourceException) {
-                HttpDataSourceException hdse = (HttpDataSourceException) e;
-                info.put("responseCode", hdse.responseCode);
-            }
-
             lastInstrumentation = info;
 
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ OPEN FAILED in " + duration + " ms for URL: " + reqUrl, e);
-            throw e;
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new HttpDataSourceException(e.getMessage(), dataSpec, androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED, HttpDataSourceException.TYPE_OPEN);
         }
     }
 
@@ -171,6 +189,13 @@ public class InstrumentedHttpDataSource implements HttpDataSource {
             Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ READ FAILED: " + e.getMessage(), e);
             lastInstrumentation.put("readException", e.getMessage());
             throw e;
+        } catch (Exception e) {
+            Log.e(TAG, "[DATASOURCE_INSTRUMENTATION] ❌ READ FAILED: " + e.getMessage(), e);
+            lastInstrumentation.put("readException", e.getMessage());
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new HttpDataSourceException(e.getMessage(), androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED, HttpDataSourceException.TYPE_READ);
         }
     }
 
